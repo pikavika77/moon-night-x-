@@ -1,21 +1,165 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Moon Light X — Premium 18+ Adult Gallery</title>
-    <meta name="description" content="Moon Light X – premium curated 18+ adult gallery at moonlightx.qd.je. Fast, mobile-first platform with HD photography. Adults 18+ only.">
-    <meta name="robots" content="noindex, nofollow">
-    <link rel="canonical" href="https://moonlightx.qd.je/">
-    <meta property="og:title" content="Moon Light X – Premium 18+ Adult Gallery">
-    <meta property="og:description" content="Premium curated adult photo gallery. 18+ only. moonlightx.qd.je">
-    <meta property="og:url" content="https://moonlightx.qd.je/">
-    <meta property="og:type" content="website">
-    <meta name="theme-color" content="#050505">
-    <link rel="stylesheet" href="./app.css">
-  </head>
-  <body>
-    <div id="root"></div>
-    <script src="./app.js"></script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Moon Light X — Premium 18+ Adult Gallery</title>
+  <meta name="description" content="Moon Light X – premium curated 18+ adult gallery. Fast, mobile-first platform with HD photography. Adults 18+ only.">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="canonical" href="https://moonlightx.qd.je/">
+  <meta property="og:title" content="Moon Light X – Premium 18+ Adult Gallery">
+  <meta property="og:url" content="https://moonlightx.qd.je/">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#050505">
+  <link rel="stylesheet" href="./app.css">
+
+  <script type="module">
+    import { initializeApp }  from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+    import { getDatabase, ref, get, update } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
+
+    const FB = {
+      apiKey:            "AIzaSyACW8aFQmlaoaxNtE55m8Pck6H8BRlfEbs",
+      authDomain:        "moon-night-x.firebaseapp.com",
+      databaseURL:       "https://moon-night-x-default-rtdb.firebaseio.com",
+      projectId:         "moon-night-x",
+      storageBucket:     "moon-night-x.firebasestorage.app",
+      messagingSenderId: "779934381788",
+      appId:             "1:779934381788:web:1426fa035171015634a619"
+    };
+
+    function getUsernameFromHash() {
+      const hash  = (window.location.hash || '').replace(/^#\/?/, '');
+      const parts = hash.split('/').filter(Boolean);
+      if (!parts.length || parts[0] === 'admin' || parts[0] === 'super') return null;
+      return parts[0];
+    }
+
+    async function trackVisit(db, clientId) {
+      if (!clientId || clientId === 'global') return;
+      try {
+        const today   = new Date().toISOString().slice(0, 10);
+        const infoRef = ref(db, `clients/${clientId}/info`);
+        const snap    = await get(infoRef);
+        const cur     = snap.exists() ? snap.val() : {};
+        const updates = { totalVisits: (cur.totalVisits || 0) + 1 };
+        if (cur.todayKey === today) {
+          updates.todayVisits = (cur.todayVisits || 0) + 1;
+        } else {
+          updates.todayVisits = 1;
+          updates.todayKey    = today;
+        }
+        await update(infoRef, updates);
+        await update(ref(db, `superAdmin/clients/${clientId}`), updates).catch(() => {});
+      } catch(e) { console.warn('Visit track:', e.message); }
+    }
+
+    function execScriptsIn(container) {
+      container.querySelectorAll('script').forEach(old => {
+        const s = document.createElement('script');
+        if (old.src) { s.src = old.src; s.async = true; }
+        else { s.textContent = old.textContent; }
+        old.parentNode.replaceChild(s, old);
+      });
+    }
+
+    function injectAdCodes(bannerCode, nativeCode) {
+      if (!bannerCode && !nativeCode) return;
+      const SLOTS = {
+        'adsterra-top-leaderboard':  bannerCode,
+        'adsterra-native-incontent': nativeCode,
+        'adsterra-mobile-sticky':    bannerCode,
+        'adsterra-bottom-footer':    bannerCode
+      };
+      const injected = new Set();
+      const obs = new MutationObserver(() => {
+        Object.entries(SLOTS).forEach(([id, code]) => {
+          if (!code || injected.has(id)) return;
+          const el = document.getElementById(id);
+          if (el) {
+            el.innerHTML = code;
+            el.dataset.injected = 'true';
+            execScriptsIn(el);
+            injected.add(id);
+          }
+        });
+        if (injected.size === Object.keys(SLOTS).filter(k => SLOTS[k]).length) obs.disconnect();
+      });
+      obs.observe(document.body, { childList: true, subtree: true });
+      setTimeout(() => obs.disconnect(), 20000);
+    }
+
+    async function resolveClient() {
+      const username = getUsernameFromHash();
+      if (!username) {
+        window.__mlxImgPath    = 'images';
+        window.__mlxCatPath    = 'categories';
+        window.__mlxClientId   = 'global';
+        window.__mlxClientName = 'Moon Light X';
+        return;
+      }
+      try {
+        const fbApp = initializeApp(FB, 'resolver');
+        const db    = getDatabase(fbApp);
+        let client  = null;
+
+        const snap = await get(ref(db, 'superAdmin/clients'));
+        if (snap.exists()) {
+          client = Object.values(snap.val()).filter(Boolean).find(c => c.username === username) || null;
+        }
+        if (!client) {
+          const ds = await get(ref(db, `clients/${username}/info`));
+          if (ds.exists()) client = ds.val();
+        }
+
+        if (client && client.id) {
+          window.__mlxImgPath    = `clients/${client.id}/images`;
+          window.__mlxCatPath    = `clients/${client.id}/categories`;
+          window.__mlxClientId   = client.id;
+          window.__mlxClientName = client.name || 'Moon Light X';
+          if (client.name) document.title = `${client.name} — Premium 18+ Gallery`;
+          trackVisit(db, client.id);
+          injectAdCodes(client.adBannerCode || '', client.adNativeCode || '');
+
+          // Set profile/social data for the React app to use
+          window.__mlxProfile = {
+            bio:       client.profile?.bio       || '',
+            avatar:    client.profile?.avatar    || '',
+            instagram: client.profile?.instagram || '',
+            twitter:   client.profile?.twitter   || '',
+            telegram:  client.profile?.telegram  || '',
+            whatsapp:  client.profile?.whatsapp  || '',
+            youtube:   client.profile?.youtube   || '',
+            other:     client.profile?.other     || '',
+            socialLinks: {
+              instagram: client.profile?.instagram || '',
+              telegram:  client.profile?.telegram  || '',
+              twitter:   client.profile?.twitter   || '',
+              whatsapp:  client.profile?.whatsapp  || '',
+              youtube:   client.profile?.youtube   || '',
+              other:     client.profile?.other     || '',
+            }
+          };
+        } else {
+          window.__mlxImgPath    = 'images';
+          window.__mlxCatPath    = 'categories';
+          window.__mlxClientId   = 'global';
+          window.__mlxClientName = 'Moon Light X';
+        }
+      } catch(e) {
+        console.warn('Resolver error:', e);
+        window.__mlxImgPath    = 'images';
+        window.__mlxCatPath    = 'categories';
+        window.__mlxClientId   = 'global';
+        window.__mlxClientName = 'Moon Light X';
+      }
+    }
+
+    window.addEventListener('hashchange', () => resolveClient().catch(console.warn));
+    await resolveClient();
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="./app.js"></script>
+</body>
 </html>
