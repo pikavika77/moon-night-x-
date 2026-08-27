@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Moon Light X — Premium 18+ Adult Gallery</title>
+  <meta name="description" content="Moon Light X – premium curated 18+ adult gallery. Fast, mobile-first platform with HD photography. Adults 18+ only.">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="canonical" href="https://moonlightx.qd.je/">
+  <meta property="og:title" content="Moon Light X – Premium 18+ Adult Gallery">
+  <meta property="og:url" content="https://moonlightx.qd.je/">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#050505">
+  <link rel="stylesheet" href="./app.css">
+
+  <!-- POPUNDER placeholder — gets filled dynamically below -->
+  <div id="mlx-popunder-slot"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+    import { getDatabase, ref, get, update } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
+
+    const FB = {
+      apiKey:            "AIzaSyACW8aFQmlaoaxNtE55m8Pck6H8BRlfEbs",
+      authDomain:        "moon-night-x.firebaseapp.com",
+      databaseURL:       "https://moon-night-x-default-rtdb.firebaseio.com",
+      projectId:         "moon-night-x",
+      storageBucket:     "moon-night-x.firebasestorage.app",
+      messagingSenderId: "779934381788",
+      appId:             "1:779934381788:web:1426fa035171015634a619"
+    };
+
+    /* ── Parse username from hash ── */
+    function getUsernameFromHash() {
+      const hash  = (window.location.hash || '').replace(/^#\/?/, '');
+      const parts = hash.split('/').filter(Boolean);
+      if (!parts.length || parts[0] === 'admin' || parts[0] === 'super') return null;
+      return parts[0];
+    }
+
+    /* ── Visit tracking ── */
+    async function trackVisit(db, clientId) {
+      if (!clientId || clientId === 'global') return;
+      try {
+        const today   = new Date().toISOString().slice(0, 10);
+        const infoRef = ref(db, `clients/${clientId}/info`);
+        const snap    = await get(infoRef);
+        const cur     = snap.exists() ? snap.val() : {};
+        const upd     = { totalVisits: (cur.totalVisits || 0) + 1 };
+        if (cur.todayKey === today) { upd.todayVisits = (cur.todayVisits || 0) + 1; }
+        else { upd.todayVisits = 1; upd.todayKey = today; }
+        await update(infoRef, upd);
+        await update(ref(db, `superAdmin/clients/${clientId}`), upd).catch(() => {});
+      } catch(e) { console.warn('Visit track:', e.message); }
+    }
+
+    /* ── Execute scripts injected via innerHTML ── */
+    function execScriptsIn(el) {
+      el.querySelectorAll('script').forEach(old => {
+        const s = document.createElement('script');
+        if (old.src) { s.src = old.src; s.async = true; }
+        else { s.textContent = old.textContent; }
+        old.parentNode.replaceChild(s, old);
+      });
+    }
+
+    /* ── Inject popunder (in <head>) ── */
+    function injectPopunder(code) {
+      if (!code) return;
+      const div = document.getElementById('mlx-popunder-slot');
+      if (div) { div.innerHTML = code; execScriptsIn(div); }
+    }
+
+    /* ── Inject banner/box ads into React ad slots ── */
+    function injectBannerAds(ads) {
+      if (!ads) return;
+      const SLOT_MAP = {
+        'adsterra-top-leaderboard':  ads.banner728  || '',
+        'adsterra-native-incontent': ads.box300     || '',
+        'adsterra-sidebar-skyscraper': ads.smart    || '',
+        'adsterra-mobile-sticky':    ads.banner320  || '',
+        'adsterra-bottom-footer':    ads.banner728  || ''
+      };
+      const injected = new Set();
+      const totalSlots = Object.values(SLOT_MAP).filter(Boolean).length;
+      if (totalSlots === 0) return;
+
+      const obs = new MutationObserver(() => {
+        Object.entries(SLOT_MAP).forEach(([id, code]) => {
+          if (!code || injected.has(id)) return;
+          const el = document.getElementById(id);
+          if (el) {
+            el.innerHTML = code;
+            el.dataset.injected = 'true';
+            execScriptsIn(el);
+            injected.add(id);
+          }
+        });
+        if (injected.size >= totalSlots) obs.disconnect();
+      });
+      obs.observe(document.body, { childList: true, subtree: true });
+      setTimeout(() => obs.disconnect(), 25000);
+    }
+
+    /* ── Main client resolver ── */
+    async function resolveClient() {
+      const username = getUsernameFromHash();
+      if (!username) {
+        window.__mlxImgPath    = 'images';
+        window.__mlxCatPath    = 'categories';
+        window.__mlxClientId   = 'global';
+        window.__mlxClientName = 'Moon Light X';
+        window.__mlxProfile    = {};
+        window.__mlxAds        = {};
+        return;
+      }
+
+      try {
+        const fbApp = initializeApp(FB, 'resolver');
+        const db    = getDatabase(fbApp);
+        let client  = null;
+
+        // Find client by username
+        const snap = await get(ref(db, 'superAdmin/clients'));
+        if (snap.exists()) {
+          client = Object.values(snap.val()).filter(Boolean)
+                         .find(c => c.username === username) || null;
+        }
+        // Fallback: direct lookup
+        if (!client) {
+          const ds = await get(ref(db, `clients/${username}/info`));
+          if (ds.exists()) client = ds.val();
+        }
+
+        if (client && client.id) {
+          // Set Firebase paths
+          window.__mlxImgPath    = `clients/${client.id}/images`;
+          window.__mlxCatPath    = `clients/${client.id}/categories`;
+          window.__mlxClientId   = client.id;
+          window.__mlxClientName = client.name || 'Moon Light X';
+          if (client.name) document.title = `${client.name} — Premium 18+ Gallery`;
+
+          // Set profile / social links
+          const p = client.profile || {};
+          window.__mlxProfile = {
+            bio:       p.bio       || '',
+            avatar:    p.avatar    || '',
+            instagram: p.instagram || '',
+            telegram:  p.telegram  || '',
+            socialLinks: {
+              instagram: p.instagram || '',
+              telegram:  p.telegram  || ''
+            }
+          };
+
+          // Set ad codes
+          window.__mlxAds = {
+            popunder:  client.adPopunder  || '',
+            banner728: client.adBanner728 || '',
+            banner320: client.adBanner320 || '',
+            box300:    client.adBox300    || '',
+            smart:     client.adSmart     || ''
+          };
+
+          // Track visit
+          trackVisit(db, client.id);
+
+          // Inject popunder immediately (doesn't need React to mount)
+          injectPopunder(window.__mlxAds.popunder);
+
+          // Inject banner ads after React mounts
+          injectBannerAds(window.__mlxAds);
+
+        } else {
+          window.__mlxImgPath    = 'images';
+          window.__mlxCatPath    = 'categories';
+          window.__mlxClientId   = 'global';
+          window.__mlxClientName = 'Moon Light X';
+          window.__mlxProfile    = {};
+          window.__mlxAds        = {};
+        }
+      } catch(e) {
+        console.warn('Resolver error:', e);
+        window.__mlxImgPath    = 'images';
+        window.__mlxCatPath    = 'categories';
+        window.__mlxClientId   = 'global';
+        window.__mlxClientName = 'Moon Light X';
+        window.__mlxProfile    = {};
+        window.__mlxAds        = {};
+      }
+    }
+
+    window.addEventListener('hashchange', () => resolveClient().catch(console.warn));
+    await resolveClient();
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="./app.js"></script>
+</body>
+</html>
