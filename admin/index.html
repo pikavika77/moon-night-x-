@@ -12,8 +12,8 @@
 <div id="view-login" style="display:flex">
   <div class="lbox" id="login-box">
     <div class="llogo" id="l-logo">Moon <span>Light X</span></div>
-    <p class="lsub" id="l-sub">Admin Panel</p>
-    <div class="lbadge owner" id="l-badge">AUTHENTICATION</div>
+    <p class="lsub" id="l-sub">Loading...</p>
+    <div class="lbadge owner" id="l-badge">ADMIN</div>
     <div class="linfo" id="l-info">Sign in with Google to continue</div>
     <button class="gbtn" id="g-btn">
       <svg width="20" height="20" viewBox="0 0 48 48">
@@ -33,10 +33,18 @@
   <div class="topbar">
     <div class="tlogo">Moon <span>Light X</span><span class="tbadge owner">SUPER ADMIN</span></div>
     <div class="tright">
-      <span class="sdot live" id="sa-db-st">Connected</span>
+      <span class="sdot live" id="sa-db-st">Connecting</span>
       <button class="btn btn-r btn-sm" id="sa-btn-add">+ Add Client</button>
       <button class="btn btn-g btn-sm" id="sa-btn-logout">Logout</button>
     </div>
+  </div>
+
+  <!-- ⚠️ Public URL Warning Banner -->
+  <div id="public-url-banner" style="display:none;align-items:center;gap:12px;background:#2d1700;border-bottom:1px solid #f59e0b;padding:10px 20px;font-size:12px;color:#fcd34d;flex-wrap:wrap">
+    <span style="font-size:16px">⚠️</span>
+    <span style="flex:1"><strong>Public Site URL set nahi hai!</strong> Clients ke liye sahi real site URL generate nahi hogi. Settings mein jaake set karo.</span>
+    <button onclick="document.querySelectorAll('.sb-item').forEach(e=>e.classList.remove('on'));document.querySelector('[data-sa-page=settings]').classList.add('on');document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));document.getElementById('sa-page-settings').classList.add('active');"
+      style="background:#f59e0b;color:#000;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">⚙️ Settings Kholein</button>
   </div>
 
   <div class="bwrap">
@@ -44,9 +52,9 @@
       <div class="sb-sec">Main</div>
       <div class="sb-item on" data-sa-page="dashboard"><span class="ic">📊</span>Dashboard</div>
       <div class="sb-item" data-sa-page="clients"><span class="ic">👥</span>Clients<span class="sbn" id="sa-nb-clients">0</span></div>
-      <div class="sb-sec">Content</div>
-      <div class="sb-item" data-sa-page="gallery"><span class="ic">🖼️</span>Site Gallery</div>
-      <div class="sb-item" data-sa-page="ads"><span class="ic">📺</span>Site Ads</div>
+      <div class="sb-sec">Site</div>
+      <div class="sb-item" data-sa-page="site-gallery"><span class="ic">🖼️</span>Site Gallery<span class="sbn" id="sa-global-img-count">0</span></div>
+      <div class="sb-item" data-sa-page="site-ads"><span class="ic">📢</span>Site Ads</div>
       <div class="sb-sec">Finance</div>
       <div class="sb-item" data-sa-page="revenue"><span class="ic">💰</span>Revenue</div>
       <div class="sb-item" data-sa-page="traffic"><span class="ic">📈</span>Traffic</div>
@@ -54,7 +62,7 @@
       <div class="sb-item" data-sa-page="activity"><span class="ic">📋</span>Activity<span class="sbn" id="sa-nb-log">0</span></div>
       <div class="sb-item" data-sa-page="settings"><span class="ic">⚙️</span>Settings</div>
       <div class="sb-foot">
-        <div class="sb-user"><strong id="sa-email">aryakaran836@gmail.com</strong>Super Admin</div>
+        <div class="sb-user"><strong id="sa-email">—</strong>Super Admin</div>
         <button class="btn btn-g btn-sm" id="sa-btn-logout2" style="width:100%;justify-content:center">Sign Out</button>
       </div>
     </aside>
@@ -62,14 +70,18 @@
 
       <!-- DASHBOARD -->
       <div class="page on" id="sa-page-dashboard">
-        <div class="phdr"><div class="ptitle">📊 Dashboard Overview</div></div>
+        <div class="phdr"><div class="ptitle">📊 Dashboard</div></div>
         <div class="sgrid">
-          <div class="scard r"><div class="slbl">Total Clients</div><div class="sval" id="sa-d-clients">0</div><div class="ssub">Active platforms</div></div>
+          <div class="scard r"><div class="slbl">Total Clients</div><div class="sval" id="sa-d-clients">—</div><div class="ssub">Active platforms</div></div>
           <div class="scard g"><div class="slbl">Platform Revenue</div><div class="sval" id="sa-d-rev">₹0</div><div class="ssub">All time</div></div>
           <div class="scard b"><div class="slbl">My Earnings</div><div class="sval" id="sa-d-mine">₹0</div><div class="ssub">After client share</div></div>
           <div class="scard y"><div class="slbl">Total Traffic</div><div class="sval" id="sa-d-traffic">0</div><div class="ssub">All clients</div></div>
-          <div class="scard p"><div class="slbl">Active Sites</div><div class="sval" id="sa-d-active">0</div><div class="ssub">Running sites</div></div>
+          <div class="scard p"><div class="slbl">Active Sites</div><div class="sval" id="sa-d-active">—</div><div class="ssub">Running sites</div></div>
           <div class="scard r"><div class="slbl">Today Visits</div><div class="sval" id="sa-d-today">0</div><div class="ssub">Live</div></div>
+        </div>
+        <div class="card">
+          <div class="chdr"><div class="ctitle">💰 Revenue per Client</div></div>
+          <div class="cbody"><div class="barchart" id="sa-rev-chart"></div></div>
         </div>
         <div class="card">
           <div class="chdr"><div class="ctitle">👥 Clients Overview</div><button class="btn btn-g btn-sm" data-sa-goto="clients">View All →</button></div>
@@ -77,6 +89,10 @@
             <thead><tr><th>Client</th><th>Username / Links</th><th>Status</th><th>Traffic</th><th>Revenue</th><th>Share</th></tr></thead>
             <tbody id="sa-dash-clients"></tbody>
           </table></div>
+        </div>
+        <div class="card">
+          <div class="chdr"><div class="ctitle">🕒 Recent Activity</div><button class="btn btn-g btn-sm" data-sa-goto="activity">View All →</button></div>
+          <div id="sa-dash-log"></div>
         </div>
       </div>
 
@@ -95,102 +111,7 @@
             <thead><tr><th>Name</th><th>Username / URLs</th><th>Email</th><th>Status</th><th>Share%</th><th>Revenue</th><th>Actions</th></tr></thead>
             <tbody id="sa-clients-tbody"></tbody>
           </table></div>
-        </div>
-      </div>
-
-      <!-- SITE GALLERY (GLOBAL) -->
-      <div class="page" id="sa-page-gallery">
-        <div class="phdr">
-          <div class="ptitle">🖼️ Site Gallery (Global)</div>
-          <button class="btn btn-b btn-sm" id="sa-btn-add-img">+ Add Global Image</button>
-        </div>
-        <div class="card">
-          <div class="chdr">
-            <div class="ctitle">Global Site Profile</div>
-            <button class="btn btn-r btn-sm" id="sa-btn-save-prof">Save Profile</button>
-          </div>
-          <div class="cbody" style="display:grid;gap:12px">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-              <div>
-                <label style="font-size:11px;color:var(--mu);display:block;margin-bottom:4px">Site Name</label>
-                <input id="sa-p-name" placeholder="Moon Light X" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px"/>
-              </div>
-              <div>
-                <label style="font-size:11px;color:var(--mu);display:block;margin-bottom:4px">Avatar URL</label>
-                <input id="sa-p-avatar" placeholder="https://..." style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px"/>
-              </div>
-            </div>
-            <div>
-              <label style="font-size:11px;color:var(--mu);display:block;margin-bottom:4px">Bio</label>
-              <textarea id="sa-p-bio" placeholder="Global site bio..." style="width:100%;min-height:50px;padding:8px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px"></textarea>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-              <div>
-                <label style="font-size:11px;color:var(--mu);display:block;margin-bottom:4px">Instagram</label>
-                <input id="sa-p-instagram" placeholder="https://instagram.com/..." style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px"/>
-              </div>
-              <div>
-                <label style="font-size:11px;color:var(--mu);display:block;margin-bottom:4px">Telegram</label>
-                <input id="sa-p-telegram" placeholder="https://t.me/..." style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px"/>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Global Categories -->
-        <div class="card" style="margin-top:14px">
-          <div class="chdr">
-            <div class="ctitle">📂 Global Categories</div>
-            <button class="btn btn-b btn-sm" id="sa-btn-add-cat">+ Add Global Category</button>
-          </div>
-          <div class="twrap"><table>
-            <thead><tr><th>ID</th><th>Name</th><th>Actions</th></tr></thead>
-            <tbody id="sa-cat-tbody"></tbody>
-          </table></div>
-        </div>
-
-        <div class="card" style="margin-top:14px">
-          <div class="chdr">
-            <div class="ctitle">Global Gallery Images</div>
-            <div style="display:flex;gap:8px">
-              <input type="search" id="sa-q-img" placeholder="Search..." style="padding:6px 10px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px"/>
-            </div>
-          </div>
-          <div class="twrap"><table>
-            <thead><tr><th>Thumb</th><th>Title / ID</th><th>Category</th><th>Actions</th></tr></thead>
-            <tbody id="sa-img-tbody"></tbody>
-          </table></div>
-        </div>
-      </div>
-
-      <!-- SITE ADS (GLOBAL) -->
-      <div class="page" id="sa-page-ads">
-        <div class="phdr"><div class="ptitle">📺 Global Site Ads</div></div>
-        <div class="card">
-          <div class="chdr"><div class="ctitle">Adsterra Global Ad Codes</div></div>
-          <div class="cbody" style="display:grid;gap:14px">
-            <div>
-              <label style="font-size:11px;font-weight:700;color:var(--tx);display:block;margin-bottom:4px">🔴 Popunder Code</label>
-              <textarea id="sa-ad-popunder" style="width:100%;min-height:70px;padding:8px 10px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-family:monospace;font-size:11px"></textarea>
-            </div>
-            <div>
-              <label style="font-size:11px;font-weight:700;color:var(--tx);display:block;margin-bottom:4px">📐 Banner 728×90 Code</label>
-              <textarea id="sa-ad-banner728" style="width:100%;min-height:60px;padding:8px 10px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-family:monospace;font-size:11px"></textarea>
-            </div>
-            <div>
-              <label style="font-size:11px;font-weight:700;color:var(--tx);display:block;margin-bottom:4px">📱 Banner 320×50 Code</label>
-              <textarea id="sa-ad-banner320" style="width:100%;min-height:60px;padding:8px 10px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-family:monospace;font-size:11px"></textarea>
-            </div>
-            <div>
-              <label style="font-size:11px;font-weight:700;color:var(--tx);display:block;margin-bottom:4px">📦 Box 300×250 Code</label>
-              <textarea id="sa-ad-box300" style="width:100%;min-height:60px;padding:8px 10px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-family:monospace;font-size:11px"></textarea>
-            </div>
-            <div>
-              <label style="font-size:11px;font-weight:700;color:var(--tx);display:block;margin-bottom:4px">🔗 Smart Link Code</label>
-              <textarea id="sa-ad-smart" style="width:100%;min-height:60px;padding:8px 10px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-family:monospace;font-size:11px"></textarea>
-            </div>
-            <button class="btn btn-r" id="sa-save-ads" style="align-self:flex-start">💾 Save Global Ads</button>
-          </div>
+          <div class="tfoot" id="sa-clients-foot"></div>
         </div>
       </div>
 
@@ -217,11 +138,12 @@
         <div class="sgrid">
           <div class="scard b"><div class="slbl">Total Visits</div><div class="sval" id="sa-t-total">0</div></div>
           <div class="scard g"><div class="slbl">Today</div><div class="sval" id="sa-t-today">0</div></div>
+          <div class="scard y"><div class="slbl">Total Views</div><div class="sval" id="sa-t-views">0</div></div>
         </div>
         <div class="card">
           <div class="chdr"><div class="ctitle">Traffic per Client</div></div>
           <div class="twrap"><table>
-            <thead><tr><th>Client</th><th>Site URL</th><th>Today</th><th>Total Visits</th><th>Status</th></tr></thead>
+            <thead><tr><th>Client</th><th>Site URL</th><th>Today</th><th>Total Visits</th><th>Views</th><th>Status</th></tr></thead>
             <tbody id="sa-traffic-tbody"></tbody>
           </table></div>
         </div>
@@ -231,7 +153,12 @@
       <div class="page" id="sa-page-activity">
         <div class="phdr">
           <div class="ptitle">📋 Activity Log</div>
-          <button class="btn btn-d btn-sm" id="sa-btn-clr-log">🗑 Clear</button>
+          <div style="display:flex;gap:8px">
+            <select id="sa-log-filter" style="padding:7px 12px;background:var(--bg);border:1px solid var(--br);border-radius:10px;color:var(--tx);font-size:12px;outline:none">
+              <option value="">All</option><option value="add">Add</option><option value="edit">Edit</option><option value="del">Delete</option><option value="login">Login</option>
+            </select>
+            <button class="btn btn-d btn-sm" id="sa-btn-clr-log">🗑 Clear</button>
+          </div>
         </div>
         <div class="card"><div id="sa-log-list" style="display:flex;flex-direction:column"></div></div>
       </div>
@@ -241,16 +168,49 @@
         <div class="phdr"><div class="ptitle">⚙️ Settings</div></div>
         <div class="card">
           <div class="chdr"><div class="ctitle">🌐 Platform URLs</div></div>
-          <div class="cbody" style="display:grid;gap:12px">
-            <div>
-              <label style="font-size:11px;font-weight:700;color:var(--mu);display:block;margin-bottom:4px">Admin Panel Base URL</label>
-              <input id="sa-base-url" type="url" placeholder="Auto-detecting..." style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:13px"/>
+          <div class="cbody">
+            <div style="font-size:12px;color:var(--mu);margin-bottom:14px;line-height:2;background:var(--bg);border:1px solid var(--br);border-radius:10px;padding:12px 14px">
+              📁 <strong style="color:var(--tx)">Repo structure (ek hi repo):</strong><br>
+              <code style="font-size:11px">moonlightx.qd.je/</code> → Real site (visitors)<br>
+              <code style="font-size:11px">moonlightx.qd.je/admin/</code> → Admin panel (aap)<br><br>
+              ✅ URLs <strong style="color:var(--grn)">auto-detect</strong> hote hain — fields khali bhi rahein to kaam karega.
             </div>
-            <div>
-              <label style="font-size:11px;font-weight:700;color:var(--blu);display:block;margin-bottom:4px">Public Site Base URL</label>
-              <input id="sa-public-url" type="url" placeholder="Auto-detecting..." style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:13px"/>
+            <div style="display:grid;gap:12px">
+              <div>
+                <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">⚙️ Admin Panel Base URL</div>
+                <input id="sa-base-url" type="url" placeholder="https://moonlightx.qd.je/admin (auto-detect)"
+                  style="width:100%;padding:10px 14px;background:var(--bg);border:1px solid var(--br);border-radius:10px;color:var(--tx);font-size:13px;outline:none;box-sizing:border-box"/>
+              </div>
+              <div>
+                <div style="font-size:10px;font-weight:700;color:var(--blu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">🌐 Public Site Base URL</div>
+                <div style="font-size:10px;color:var(--mu);margin-bottom:5px">Default: same domain without /admin</div>
+                <input id="sa-public-url" type="url" placeholder="https://moonlightx.qd.je (auto-detect)"
+                  style="width:100%;padding:10px 14px;background:var(--bg);border:1px solid #1a3060;border-radius:10px;color:var(--tx);font-size:13px;outline:none;box-sizing:border-box"/>
+              </div>
+              <button class="btn btn-r" id="sa-save-base" style="align-self:flex-start">💾 Save URLs</button>
             </div>
-            <button class="btn btn-r" id="sa-save-base" style="align-self:flex-start">💾 Save URLs</button>
+            <div style="margin-top:12px;padding:12px 14px;background:var(--bg);border:1px solid var(--br);border-radius:10px;font-size:11px;font-family:monospace;color:var(--mu)">
+              Admin URL: <span id="sa-url-preview" style="color:var(--grn)">—</span><br>
+              Site URL&nbsp;&nbsp;: <span id="sa-site-preview" style="color:var(--blu)">—</span>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="chdr"><div class="ctitle">➕ Add Earning Manually</div></div>
+          <div class="cbody">
+            <div class="fgrid">
+              <div class="fg"><label>Select Client</label><select id="sa-earn-client"><option value="">Choose...</option></select></div>
+              <div class="fg"><label>Amount (₹)</label><input type="number" id="sa-earn-amount" placeholder="500"/></div>
+              <div class="fg"><label>Note</label><input id="sa-earn-note" placeholder="Adsterra earnings Oct"/></div>
+              <div class="fg" style="justify-content:flex-end;padding-top:18px"><button class="btn btn-grn" id="sa-btn-earn">+ Add Earning</button></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="chdr"><div class="ctitle">🔐 Account</div></div>
+          <div class="cbody" style="font-size:12px;color:var(--mu);line-height:2">
+            <strong style="color:var(--tx)">Signed in:</strong> <span id="sa-set-email" style="color:var(--grn)">—</span><br>
+            <strong style="color:var(--tx)">Firebase:</strong> moon-night-x-default-rtdb.firebaseio.com
           </div>
         </div>
       </div>
@@ -262,9 +222,9 @@
 <!-- ══ CLIENT ADMIN VIEW ═════════════════════════════════════════════════ -->
 <div id="view-client" style="display:none">
   <div class="topbar">
-    <div class="tlogo-client"><span id="cl-site-name">Client Gallery</span><span class="tbadge client">CLIENT ADMIN</span></div>
+    <div class="tlogo-client"><span id="cl-site-name">My Gallery</span><span class="tbadge client">CLIENT ADMIN</span></div>
     <div class="tright">
-      <span class="sdot live" id="cl-db-st">Connected</span>
+      <span class="sdot live" id="cl-db-st">Connecting</span>
       <button class="btn btn-b btn-sm" id="cl-btn-add-img">+ Add Image</button>
       <button class="btn btn-g btn-sm" id="cl-btn-logout">Logout</button>
     </div>
@@ -288,10 +248,25 @@
       <div class="page on" id="cl-page-dashboard">
         <div class="phdr"><div class="ptitle">📊 My Dashboard</div></div>
         <div class="sgrid">
-          <div class="scard g"><div class="slbl">My Earning</div><div class="sval" id="cl-d-earn">₹0</div></div>
+          <div class="scard g"><div class="slbl">My Earning</div><div class="sval" id="cl-d-earn">₹0</div><div class="ssub">All time</div></div>
+          <div class="scard b"><div class="slbl">This Month</div><div class="sval" id="cl-d-month">₹0</div></div>
           <div class="scard y"><div class="slbl">Total Visits</div><div class="sval" id="cl-d-visits">0</div></div>
-          <div class="scard r"><div class="slbl">Today Visits</div><div class="sval" id="cl-d-today">0</div></div>
+          <div class="scard r"><div class="slbl">Today</div><div class="sval" id="cl-d-today">0</div></div>
           <div class="scard p"><div class="slbl">Total Images</div><div class="sval" id="cl-d-images">0</div></div>
+          <div class="scard b"><div class="slbl">My Share %</div><div class="sval" id="cl-d-pct">—</div></div>
+        </div>
+        <div class="card">
+          <div class="chdr"><div class="ctitle">💰 Earning Progress</div></div>
+          <div class="cbody">
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--mu);margin-bottom:4px">
+              <span>This month</span><span id="cl-earn-pct-lbl">0%</span>
+            </div>
+            <div class="earn-bar"><div class="earn-fill" id="cl-earn-fill" style="width:0%"></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="chdr"><div class="ctitle">🆕 Recent Images</div><button class="btn btn-g btn-sm" data-cl-goto="images">View All →</button></div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(75px,1fr));gap:8px;padding:16px" id="cl-dash-imgs"></div>
         </div>
       </div>
 
@@ -300,12 +275,19 @@
         <div class="card">
           <div class="chdr">
             <div class="ctitle">🖼️ My Images</div>
-            <button class="btn btn-b btn-sm" id="cl-btn-add-img-page">+ Add Image</button>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <input type="search" id="cl-q-img" placeholder="🔍 Search..." style="padding:7px 12px;background:var(--bg);border:1px solid var(--br);border-radius:10px;color:var(--tx);font-size:12px;outline:none;width:150px"/>
+              <select id="cl-f-cat" style="padding:7px 12px;background:var(--bg);border:1px solid var(--br);border-radius:10px;color:var(--tx);font-size:12px;outline:none">
+                <option value="">All Categories</option>
+              </select>
+              <button class="btn btn-b btn-sm" id="cl-btn-add-img-page">+ Add Image</button>
+            </div>
           </div>
           <div class="twrap"><table>
-            <thead><tr><th>Thumb</th><th>Title / ID</th><th>Category</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Thumb</th><th>Title/ID</th><th>Category</th><th>Flags</th><th>Stats</th><th>Actions</th></tr></thead>
             <tbody id="cl-img-tbody"></tbody>
           </table></div>
+          <div class="tfoot" id="cl-img-foot"></div>
         </div>
       </div>
 
@@ -314,46 +296,70 @@
         <div class="card">
           <div class="chdr"><div class="ctitle">📂 My Categories</div><button class="btn btn-b btn-sm" id="cl-btn-add-cat">+ Add Category</button></div>
           <div class="twrap"><table>
-            <thead><tr><th>ID</th><th>Name</th><th>Actions</th></tr></thead>
+            <thead><tr><th>ID</th><th>Name</th><th>Images</th><th>Actions</th></tr></thead>
             <tbody id="cl-cat-tbody"></tbody>
           </table></div>
         </div>
       </div>
 
-      <!-- PROFILE -->
+      <!-- PROFILE / SITE SETTINGS -->
       <div class="page" id="cl-page-profile">
-        <div class="phdr"><div class="ptitle">✏️ My Profile</div></div>
+        <div class="phdr"><div class="ptitle">✏️ My Profile &amp; Social Links</div></div>
         <div class="card">
-          <div class="cbody" style="display:grid;gap:12px">
+          <div class="chdr"><div class="ctitle">👤 Profile Info</div></div>
+          <div class="cbody" style="display:grid;gap:14px">
             <div>
-              <label style="font-size:11px;color:var(--mu);display:block;margin-bottom:4px">Bio</label>
-              <textarea id="cl-p-bio" style="width:100%;min-height:60px;padding:8px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx)"></textarea>
+              <label style="font-size:11px;font-weight:600;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px">Display Name (visitors ko dikhega)</label>
+              <input id="cl-p-name" placeholder="Ravi Gallery" style="width:100%;padding:9px 13px;background:var(--bg);border:1px solid var(--br);border-radius:10px;color:var(--tx);font-size:13px;outline:none;box-sizing:border-box"/>
             </div>
             <div>
-              <label style="font-size:11px;color:var(--mu);display:block;margin-bottom:4px">Avatar URL</label>
-              <input id="cl-p-avatar" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx)"/>
+              <label style="font-size:11px;font-weight:600;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px">Bio / Description (gallery ke baare mein)</label>
+              <textarea id="cl-p-bio" placeholder="Premium 18+ content gallery..." style="width:100%;min-height:70px;padding:9px 13px;background:var(--bg);border:1px solid var(--br);border-radius:10px;color:var(--tx);font-size:13px;outline:none;resize:vertical;box-sizing:border-box"></textarea>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-              <div>
-                <label style="font-size:11px;color:var(--mu);display:block;margin-bottom:4px">Instagram URL</label>
-                <input id="cl-p-instagram" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx)"/>
-              </div>
-              <div>
-                <label style="font-size:11px;color:var(--mu);display:block;margin-bottom:4px">Telegram URL</label>
-                <input id="cl-p-telegram" style="width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx)"/>
-              </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:6px">Profile / Banner Image URL</label>
+              <input id="cl-p-avatar" type="url" placeholder="https://i.imgur.com/yourphoto.jpg" style="width:100%;padding:9px 13px;background:var(--bg);border:1px solid var(--br);border-radius:10px;color:var(--tx);font-size:13px;outline:none;box-sizing:border-box"/>
             </div>
-            <button class="btn btn-r" id="cl-p-save" style="align-self:flex-start">💾 Save Profile</button>
           </div>
         </div>
+        <div class="card" style="margin-top:14px">
+          <div class="chdr"><div class="ctitle">🔗 Social Media Links</div></div>
+          <div class="cbody" style="display:grid;gap:12px">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div>
+                <label style="font-size:11px;font-weight:600;color:var(--mu);display:block;margin-bottom:5px">📸 Instagram URL</label>
+                <input id="cl-p-instagram" type="url" placeholder="https://instagram.com/username" style="width:100%;padding:9px 13px;background:var(--bg);border:1px solid var(--br);border-radius:10px;color:var(--tx);font-size:12px;outline:none;box-sizing:border-box"/>
+              </div>
+              <div>
+                <label style="font-size:11px;font-weight:600;color:var(--mu);display:block;margin-bottom:5px">📱 Telegram URL</label>
+                <input id="cl-p-telegram" type="url" placeholder="https://t.me/username" style="width:100%;padding:9px 13px;background:var(--bg);border:1px solid var(--br);border-radius:10px;color:var(--tx);font-size:12px;outline:none;box-sizing:border-box"/>
+              </div>
+            </div>
+            <div style="font-size:11px;color:var(--mu);background:var(--s2);padding:10px 14px;border-radius:8px">
+              ⚠️ <strong>Note:</strong> Sirf social links daal sakte ho — legal policies (Terms, Privacy, DMCA) change nahi hongi.
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end">
+          <button class="btn btn-g btn-sm" id="cl-p-reset">↩ Reset</button>
+          <button class="btn btn-r" id="cl-p-save">💾 Save Profile</button>
+        </div>
+        <div id="cl-p-msg" style="margin-top:12px;font-size:12px;text-align:right;display:none"></div>
       </div>
 
-      <!-- EARNING -->
+            <!-- EARNING -->
       <div class="page" id="cl-page-earning">
         <div class="phdr"><div class="ptitle">💰 My Earning</div></div>
         <div class="sgrid">
           <div class="scard g"><div class="slbl">Total Earned</div><div class="sval" id="cl-e-total">₹0</div></div>
-          <div class="scard b"><div class="slbl">My Share %</div><div class="sval" id="cl-e-pct">—</div></div>
+          <div class="scard b"><div class="slbl">My Share</div><div class="sval" id="cl-e-pct">—</div></div>
+        </div>
+        <div class="card">
+          <div class="chdr"><div class="ctitle">📋 Earning History</div></div>
+          <div class="twrap"><table>
+            <thead><tr><th>Date</th><th>Total Added</th><th>My Share</th><th>Note</th></tr></thead>
+            <tbody id="cl-earn-tbody"></tbody>
+          </table></div>
         </div>
       </div>
 
@@ -368,31 +374,186 @@
     <div class="fgrid">
       <div class="fg full"><label>Client Name *</label><input id="sa-cm-name" placeholder="John Gallery"/></div>
       <div class="fg full">
-        <label>Username *</label>
-        <input id="sa-cm-username" placeholder="johngallery" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9-]/g,'')"/>
+        <label>Username * <span style="color:var(--mu);font-weight:400">(URL mein aayega — sirf lowercase, no spaces)</span></label>
+        <div style="display:flex;align-items:center;gap:8px">
+          <input id="sa-cm-username" placeholder="johngallery" style="flex:1;padding:9px 13px;background:var(--bg);border:1px solid var(--br);border-radius:10px;color:var(--tx);font-size:13px;outline:none" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9-]/g,'')"/>
+        </div>
+        <div style="font-size:10px;color:var(--mu);margin-top:4px" id="sa-username-preview">Preview: —</div>
       </div>
-      <div class="fg full"><label>Client Email *</label><input id="sa-cm-email" type="email" placeholder="client@gmail.com"/></div>
+      <div class="fg full"><label>Client Gmail * (for their login)</label><input id="sa-cm-email" type="email" placeholder="client@gmail.com"/></div>
       <div class="fg full">
-        <label>Earning Share % (Client: <span id="sa-pct-val">40</span>%)</label>
-        <input type="range" id="sa-cm-pct" min="0" max="100" value="40" style="width:100%;accent-color:var(--red)"/>
+        <label>Earning Share % — Client gets: <span id="sa-pct-val">40</span>% | You keep: <span id="sa-keep-val">60</span>%</label>
+        <input type="range" id="sa-cm-pct" min="0" max="100" value="40" style="width:100%;accent-color:var(--red);margin-top:6px"/>
       </div>
       <div class="fg"><label>Status</label>
         <select id="sa-cm-status"><option value="active">Active</option><option value="inactive">Inactive</option></select>
       </div>
-      <div class="fg full" style="grid-column:1/-1;border-top:1px solid var(--br);padding-top:10px">
-        <div style="font-size:11px;font-weight:700;color:var(--mu);margin-bottom:8px">Adsterra Ad Codes</div>
-        <div style="display:grid;gap:8px">
-          <textarea id="sa-cm-ad-popunder" placeholder="Popunder code" style="min-height:45px;font-family:monospace;font-size:10px"></textarea>
-          <textarea id="sa-cm-ad-banner728" placeholder="Banner 728x90 code" style="min-height:45px;font-family:monospace;font-size:10px"></textarea>
-          <textarea id="sa-cm-ad-banner320" placeholder="Banner 320x50 code" style="min-height:45px;font-family:monospace;font-size:10px"></textarea>
-          <textarea id="sa-cm-ad-box300" placeholder="Box 300x250 code" style="min-height:45px;font-family:monospace;font-size:10px"></textarea>
-          <textarea id="sa-cm-ad-smart" placeholder="Smart link code" style="min-height:45px;font-family:monospace;font-size:10px"></textarea>
+      <div class="fg"><label>Adsterra Site ID</label><input id="sa-cm-adsterra" placeholder="123456"/></div>
+      <div class="fg full"><label>Notes</label><textarea id="sa-cm-notes" style="min-height:55px"></textarea></div>
+      <div class="fg full" style="grid-column:1/-1;border-top:1px solid var(--br);padding-top:14px;margin-top:4px">
+        <div style="font-size:11px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px">📺 Adsterra Ad Codes — Client ki site pe auto-lagenge</div>
+        <div style="display:grid;gap:12px">
+          <div>
+            <label style="font-size:11px;font-weight:600;color:var(--tx);display:block;margin-bottom:4px">🔴 Popunder <span style="color:var(--mu);font-weight:400">(sabse zyada earning)</span></label>
+            <textarea id="sa-cm-ad-popunder" style="width:100%;min-height:55px;padding:8px 10px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-family:monospace;font-size:10px;outline:none;resize:vertical;box-sizing:border-box" placeholder="&lt;script&gt;...popunder...&lt;/script&gt;"></textarea>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--tx);display:block;margin-bottom:4px">📐 Banner 728×90 <span style="color:var(--mu);font-weight:400">(desktop)</span></label>
+              <textarea id="sa-cm-ad-banner728" style="width:100%;min-height:50px;padding:8px 10px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-family:monospace;font-size:10px;outline:none;resize:vertical;box-sizing:border-box" placeholder="&lt;script&gt;...728x90...&lt;/script&gt;"></textarea>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--tx);display:block;margin-bottom:4px">📱 Banner 320×50 <span style="color:var(--mu);font-weight:400">(mobile)</span></label>
+              <textarea id="sa-cm-ad-banner320" style="width:100%;min-height:50px;padding:8px 10px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-family:monospace;font-size:10px;outline:none;resize:vertical;box-sizing:border-box" placeholder="&lt;script&gt;...320x50...&lt;/script&gt;"></textarea>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--tx);display:block;margin-bottom:4px">📦 Box 300×250 <span style="color:var(--mu);font-weight:400">(in-content)</span></label>
+              <textarea id="sa-cm-ad-box300" style="width:100%;min-height:50px;padding:8px 10px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-family:monospace;font-size:10px;outline:none;resize:vertical;box-sizing:border-box" placeholder="&lt;script&gt;...300x250...&lt;/script&gt;"></textarea>
+            </div>
+            <div>
+              <label style="font-size:11px;font-weight:600;color:var(--tx);display:block;margin-bottom:4px">🔗 Smart Link</label>
+              <textarea id="sa-cm-ad-smart" style="width:100%;min-height:50px;padding:8px 10px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-family:monospace;font-size:10px;outline:none;resize:vertical;box-sizing:border-box" placeholder="&lt;script&gt;...smart link...&lt;/script&gt;"></textarea>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:10px;color:var(--mu);background:var(--s2);padding:8px 12px;border-radius:7px;margin-top:10px">
+          ℹ️ Adsterra se code copy karo → paste karo → Save. Client ki gallery pe auto activate.
         </div>
       </div>
     </div>
     <div class="mfoot">
       <button class="btn btn-g" id="sa-cm-cancel">Cancel</button>
-      <button class="btn btn-r" id="sa-cm-save">💾 Save Client</button>
+      <button class="btn btn-r" id="sa-cm-save">💾 Save & Generate URLs</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SITE GALLERY PAGE ════════════════════════════════════════════════ -->
+<div id="sa-page-site-gallery" class="page" style="padding:24px;max-width:1100px">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+    <div>
+      <h2 style="margin:0;font-size:20px">🖼️ Site Gallery</h2>
+      <div style="font-size:12px;color:var(--mu);margin-top:4px">Real site pe dikhne wali images — <code>moonlightx.qd.je</code> pe global gallery</div>
+    </div>
+    <button class="btn btn-r" onclick="document.getElementById('sa-global-add-modal').style.display='flex'">+ Add Image</button>
+  </div>
+
+  <!-- Categories -->
+  <div class="card" style="margin-bottom:18px">
+    <div class="chdr"><div class="ctitle">📂 Categories</div></div>
+    <div class="cbody">
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input id="sa-gcat-name" placeholder="Category naam (jaise: Hot, New, Premium)" style="flex:1;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none"/>
+        <button class="btn btn-r btn-sm" onclick="saAddGlobalCat()">+ Add</button>
+      </div>
+      <div id="sa-global-cat-list"><div style="color:var(--mu);font-size:12px">Loading...</div></div>
+    </div>
+  </div>
+
+  <!-- Image Grid -->
+  <div class="card">
+    <div class="chdr"><div class="ctitle">🖼️ Images</div></div>
+    <div class="cbody">
+      <div id="sa-global-img-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
+        <div class="empty"><div class="eic">🖼️</div>Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Site Profile -->
+  <div class="card" style="margin-top:18px">
+    <div class="chdr"><div class="ctitle">👤 Site Profile (Real site header pe dikhega)</div></div>
+    <div class="cbody" style="display:grid;gap:10px">
+      <input id="sa-sp-name"   placeholder="Site naam (jaise: Moon Light X)" style="padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none"/>
+      <input id="sa-sp-avatar" placeholder="Profile photo URL" style="padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none"/>
+      <textarea id="sa-sp-bio" placeholder="Bio / tagline" rows="2" style="padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none;resize:vertical"></textarea>
+      <button class="btn btn-r btn-sm" style="align-self:flex-start" onclick="saSaveSiteProfile()">💾 Save Profile</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SITE ADS PAGE ═════════════════════════════════════════════════════ -->
+<div id="sa-page-site-ads" class="page" style="padding:24px;max-width:800px">
+  <div style="margin-bottom:20px">
+    <h2 style="margin:0;font-size:20px">📢 Site Ads</h2>
+    <div style="font-size:12px;color:var(--mu);margin-top:4px">Yeh ads <strong>moonlightx.qd.je</strong> (main real site) pe show honge — clients ke ads alag hain</div>
+  </div>
+
+  <div class="card">
+    <div class="chdr"><div class="ctitle">💻 Ad Codes</div></div>
+    <div class="cbody" style="display:grid;gap:14px">
+
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">🔻 Popunder Code</div>
+        <div style="font-size:10px;color:var(--mu2);margin-bottom:5px">Page open hone pe ek alag tab mein khuleg</div>
+        <textarea id="sa-gad-popunder" rows="3" placeholder="Popunder ad script code yahaan paste karo" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:11px;font-family:monospace;outline:none;resize:vertical;box-sizing:border-box"></textarea>
+      </div>
+
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">📺 Banner 728×90 (Desktop Leaderboard)</div>
+        <textarea id="sa-gad-banner728" rows="3" placeholder="Banner 728x90 script" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:11px;font-family:monospace;outline:none;resize:vertical;box-sizing:border-box"></textarea>
+      </div>
+
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">📱 Banner 320×50 (Mobile Sticky)</div>
+        <textarea id="sa-gad-banner320" rows="3" placeholder="Mobile banner script" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:11px;font-family:monospace;outline:none;resize:vertical;box-sizing:border-box"></textarea>
+      </div>
+
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">🟦 Box 300×250 (Native / In-Content)</div>
+        <textarea id="sa-gad-box300" rows="3" placeholder="Box ad script" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:11px;font-family:monospace;outline:none;resize:vertical;box-sizing:border-box"></textarea>
+      </div>
+
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">🧠 Smart Ad / Social Bar</div>
+        <textarea id="sa-gad-smart" rows="3" placeholder="Smart / social bar script" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:11px;font-family:monospace;outline:none;resize:vertical;box-sizing:border-box"></textarea>
+      </div>
+
+      <button class="btn btn-r" onclick="saSaveGlobalAds()" style="align-self:flex-start">💾 Save All Ads</button>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div class="cbody" style="font-size:12px;color:var(--mu);line-height:1.8">
+      ℹ️ <strong style="color:var(--tx)">Kaise kaam karta hai:</strong><br>
+      Ad codes save karo → Real site (<code>moonlightx.qd.je</code>) pe turant reflect honge.<br>
+      Popunder script sab se pehle inject hota hai. Banners React app ke slots mein jaate hain.<br>
+      Client ke apne ads client admin panel se alag set hote hain.
+    </div>
+  </div>
+</div>
+
+<!-- ══ ADD GLOBAL IMAGE MODAL ═══════════════════════════════════════════ -->
+<div class="overlay" id="sa-global-add-modal" style="display:none">
+  <div class="modal">
+    <h2>🖼️ Add Image to Site Gallery</h2>
+    <div style="display:grid;gap:10px;margin-bottom:16px">
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:4px">Title *</div>
+        <input id="sa-gadd-title" placeholder="Image ka naam" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none;box-sizing:border-box"/>
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:4px">Thumbnail URL *</div>
+        <input id="sa-gadd-thumb" type="url" placeholder="https://... (compressed/preview)" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none;box-sizing:border-box"/>
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:4px">Hi-Res URL (optional)</div>
+        <input id="sa-gadd-hires" type="url" placeholder="https://... (full quality, khali chodo agar same hai)" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none;box-sizing:border-box"/>
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:4px">Category</div>
+        <select id="sa-gadd-cat" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none">
+          <option value="general">General</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:4px">Description (optional)</div>
+        <textarea id="sa-gadd-desc" rows="2" placeholder="Image description..." style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none;resize:vertical;box-sizing:border-box"></textarea>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-r" onclick="saAddGlobalImg()">✅ Add Image</button>
+      <button class="btn btn-g" onclick="document.getElementById('sa-global-add-modal').style.display='none'">Cancel</button>
     </div>
   </div>
 </div>
@@ -400,41 +561,96 @@
 <!-- ══ SHARE MODAL ════════════════════════════════════════════════════════ -->
 <div class="overlay" id="share-modal" style="display:none">
   <div class="modal">
-    <h2>📤 Share Client URLs</h2>
-    <div style="font-size:12px;color:var(--mu);margin-bottom:14px">Client: <strong id="sm-name" style="color:var(--tx)">—</strong></div>
+    <h2>📤 Share with Client</h2>
+    <div style="font-size:12px;color:var(--mu);margin-bottom:20px">Client: <strong id="sm-name" style="color:var(--tx)">—</strong></div>
 
-    <div style="margin-bottom:12px">
-      <div style="font-size:11px;font-weight:700;color:var(--grn);margin-bottom:4px">⚙️ Admin Panel URL</div>
-      <div style="background:var(--bg);border:1px solid var(--br);border-radius:8px;padding:8px;word-break:break-all;font-size:11px;font-family:monospace;color:var(--grn)" id="sm-admin-url"></div>
-      <button class="btn btn-grn btn-sm" id="sm-copy-admin" style="margin-top:6px">📋 Copy Admin Link</button>
+    <div style="margin-bottom:14px">
+      <div style="font-size:10px;font-weight:800;color:var(--grn);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">⚙️ Admin Panel URL</div>
+      <div style="background:var(--bg);border:1px solid #0d4015;border-radius:12px;padding:12px 14px;margin-bottom:8px">
+        <div id="sm-admin-url" style="font-size:12px;color:var(--grn);font-family:monospace;word-break:break-all"></div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-grn btn-sm" id="sm-copy-admin">📋 Copy</button>
+        <button class="btn btn-g btn-sm" id="sm-open-admin">🔗 Open</button>
+      </div>
+      <div style="font-size:10px;color:var(--mu2);margin-top:5px">Client apni Gmail se login karega</div>
     </div>
 
-    <div style="margin-bottom:16px">
-      <div style="font-size:11px;font-weight:700;color:var(--blu);margin-bottom:4px">🌐 Public Gallery URL</div>
-      <div style="background:var(--bg);border:1px solid var(--br);border-radius:8px;padding:8px;word-break:break-all;font-size:11px;font-family:monospace;color:var(--blu)" id="sm-site-url"></div>
-      <button class="btn btn-b btn-sm" id="sm-copy-site" style="margin-top:6px">📋 Copy Public Link</button>
+    <div style="margin-bottom:20px">
+      <div style="font-size:10px;font-weight:800;color:var(--blu);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">🌐 Real Site URL</div>
+
+      <!-- Warning if public URL not set -->
+      <div id="sm-public-warn" style="display:none;align-items:center;gap:8px;background:#2d1700;border:1px solid #f59e0b;border-radius:10px;padding:10px 12px;margin-bottom:8px;font-size:11px;color:#fcd34d">
+        ⚠️ <span>Public Site URL set nahi hai — Settings mein jaake set karo pehle!</span>
+      </div>
+
+      <div style="background:var(--bg);border:1px solid #1a3060;border-radius:12px;padding:12px 14px;margin-bottom:8px">
+        <div id="sm-site-url" style="font-size:12px;color:var(--blu);font-family:monospace;word-break:break-all"></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-sm" style="background:#0a1225;color:var(--blu);border:1px solid #1a3060" id="sm-copy-site">📋 Copy</button>
+        <button class="btn btn-g btn-sm" id="sm-open-site">🔗 Open</button>
+      </div>
+      <div style="font-size:10px;color:var(--mu2);margin-top:6px">Visitors is link pe jaayenge — admin panel mein jo update karo woh yahan automatically aata hai</div>
     </div>
 
+    <div style="background:var(--bg);border:1px solid var(--br);border-radius:12px;padding:14px;margin-bottom:16px">
+      <div style="font-size:10px;font-weight:700;color:var(--mu);margin-bottom:8px;text-transform:uppercase">📋 Copy Both (WhatsApp/Email ready)</div>
+      <button class="btn btn-g" id="sm-copy-both" style="width:100%;justify-content:center">📋 Copy Both Links</button>
+    </div>
+
+    <button class="btn btn-r" id="sm-close" style="width:100%;justify-content:center">Done ✓</button>
+  </div>
+</div>
+
+<!-- ══ CLIENT: IMAGE MODAL ═══════════════════════════════════════════════ -->
+<div class="overlay" id="cl-img-modal" style="display:none">
+  <div class="modal modal-lg">
+    <h2 id="cl-im-title">➕ Add Image</h2>
+    <div class="fgrid">
+      <div class="fg"><label>Image ID *</label><input id="cl-m-id" placeholder="img-001"/></div>
+      <div class="fg"><label>Slug *</label><input id="cl-m-slug" placeholder="my-slug"/></div>
+      <div class="fg full"><label>Title *</label><input id="cl-m-title"/></div>
+      <div class="fg full"><label>Description</label><textarea id="cl-m-desc"></textarea></div>
+      <div class="fg"><label>Category</label><select id="cl-m-cat"><option value="general">General</option></select></div>
+      <div class="fg"><label>Aspect Ratio</label><select id="cl-m-aspect"><option value="portrait">Portrait</option><option value="landscape">Landscape</option><option value="square">Square</option></select></div>
+      <div class="fg full"><label>Thumbnail URL *</label><input id="cl-m-thumb"/><img class="prev-img" id="cl-p-thumb"/></div>
+      <div class="fg full"><label>High Res URL *</label><input id="cl-m-hires"/><img class="prev-img" id="cl-p-hires"/></div>
+      <div class="fg full"><label>Gallery Images (one per line)</label><textarea id="cl-m-gallery" style="min-height:70px"></textarea></div>
+      <div class="fg"><label>Model Name</label><input id="cl-m-model"/></div>
+      <div class="fg"><label>Resolution</label><input id="cl-m-res" placeholder="3840x5120"/></div>
+      <div class="fg"><label>Format</label><select id="cl-m-fmt"><option>WebP</option><option>AVIF</option><option>JPEG</option></select></div>
+      <div class="fg"><label>File Size</label><input id="cl-m-size" placeholder="1.8 MB"/></div>
+      <div class="fg"><label>Views</label><input id="cl-m-views" type="number" value="0"/></div>
+      <div class="fg"><label>Likes</label><input id="cl-m-likes" type="number" value="0"/></div>
+      <div class="fg"><label>Uploaded At</label><input id="cl-m-up" placeholder="Just now"/></div>
+      <div class="fg"><label>Tags (comma sep)</label><input id="cl-m-tags"/></div>
+      <div class="fg full"><label>Flags</label>
+        <div class="checks">
+          <label class="chk"><input type="checkbox" id="cl-m-ft"/> ⭐ Featured</label>
+          <label class="chk"><input type="checkbox" id="cl-m-tr"/> 🔥 Trending</label>
+          <label class="chk"><input type="checkbox" id="cl-m-pp"/> ❤️ Popular</label>
+          <label class="chk"><input type="checkbox" id="cl-m-nw"/> ✨ New</label>
+        </div>
+      </div>
+    </div>
     <div class="mfoot">
-      <button class="btn btn-g" id="sm-close">Close</button>
+      <button class="btn btn-g" id="cl-im-cancel">Cancel</button>
+      <button class="btn btn-b" id="cl-im-save">💾 Save Image</button>
     </div>
   </div>
 </div>
 
-<!-- ══ IMAGE MODAL (GLOBAL & CLIENT) ═════════════════════════════════════ -->
-<div class="overlay" id="img-modal" style="display:none">
-  <div class="modal modal-lg">
-    <h2 id="im-title">🖼️ Add / Edit Image</h2>
-    <div class="fgrid">
-      <div class="fg full"><label>Title *</label><input id="m-title"/></div>
-      <div class="fg full"><label>Description</label><textarea id="m-desc"></textarea></div>
-      <div class="fg"><label>Category</label><input id="m-cat" placeholder="general"/></div>
-      <div class="fg full"><label>Thumbnail URL *</label><input id="m-thumb"/></div>
-      <div class="fg full"><label>Hi-Res URL *</label><input id="m-hires"/></div>
-    </div>
+<!-- ══ CLIENT: CATEGORY MODAL ═══════════════════════════════════════════ -->
+<div class="overlay" id="cl-cat-modal" style="display:none">
+  <div class="modal" style="max-width:440px">
+    <h2 id="cl-cm-title">📂 Add Category</h2>
+    <div class="fg"><label>Category ID *</label><input id="cl-c-id" placeholder="glamour"/></div>
+    <div class="fg"><label>Display Name *</label><input id="cl-c-name" placeholder="Glamour"/></div>
+    <div class="fg"><label>Description</label><textarea id="cl-c-desc" style="min-height:55px"></textarea></div>
     <div class="mfoot">
-      <button class="btn btn-g" id="im-cancel">Cancel</button>
-      <button class="btn btn-b" id="im-save">💾 Save Image</button>
+      <button class="btn btn-g" id="cl-cm-cancel">Cancel</button>
+      <button class="btn btn-b" id="cl-cm-save">💾 Save</button>
     </div>
   </div>
 </div>
