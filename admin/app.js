@@ -145,7 +145,6 @@ function getBase() {
   localStorage.setItem('mnx_base_url', defaultBase);
   return defaultBase;
 }
-}
 
 function getPublicBase() {
   const stored = localStorage.getItem('mnx_public_url');
