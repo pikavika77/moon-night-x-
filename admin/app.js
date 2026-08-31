@@ -140,6 +140,12 @@ function getBase() {
   const stored = localStorage.getItem('mnx_base_url');
   if (stored) {
     const clean = stored.trim().replace(/\/index\.(html?|php)$/i, '').replace(/\/+$/, '');
+    // Clear stale value if it's root domain but we're now at /admin/
+    if (clean === window.location.origin && defaultBase !== window.location.origin) {
+      localStorage.removeItem('mnx_base_url');
+      localStorage.setItem('mnx_base_url', defaultBase);
+      return defaultBase;
+    }
     return clean;
   }
   localStorage.setItem('mnx_base_url', defaultBase);
@@ -942,12 +948,22 @@ Hi! Ye rahe aapke Moon Light X ke 2 links:\n\n⚙️ Admin Panel (images manage 
 
   (async () => {
     try {
-      await update(ref(db, `superAdmin/clients/${clientId}`), { adminUrl, generatedAt: new Date().toISOString() });
-      try { await update(ref(db, `clients/${clientId}/info`), { adminUrl, generatedAt: new Date().toISOString() }); } catch(e){}
-      saAddLog('add', `Generated URLs for "${c.name}" — admin: ${adminUrl}`);
+      await update(ref(db, `superAdmin/clients/${clientId}`), {
+        adminUrl,
+        siteUrl,
+        generatedAt: new Date().toISOString()
+      });
+      try {
+        await update(ref(db, `clients/${clientId}/info`), {
+          adminUrl,
+          siteUrl,
+          generatedAt: new Date().toISOString()
+        });
+      } catch(e){}
+      saAddLog('add', `Generated URLs for "${c.name}" — site: ${siteUrl}`);
     } catch (err) {
       console.error('Error saving URLs to Firebase:', err);
-      toast('❌ Failed to save URLs to database: ' + err.message, 'err');
+      toast('❌ Failed to save URLs: ' + err.message, 'err');
     }
   })();
 
