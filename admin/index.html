@@ -213,6 +213,85 @@
             <strong style="color:var(--tx)">Firebase:</strong> moon-night-x-default-rtdb.firebaseio.com
           </div>
         </div>
+
+
+      <!-- SITE GALLERY PAGE -->
+      <div id="sa-page-site-gallery" class="page" style="padding:24px;max-width:1100px">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+          <div>
+            <h2 style="margin:0;font-size:20px">🖼️ Site Gallery</h2>
+            <div style="font-size:12px;color:var(--mu);margin-top:4px">Real site pe dikhne wali images — moonlightx.qd.je pe global gallery</div>
+          </div>
+          <button class="btn btn-r" onclick="document.getElementById('sa-global-add-modal').style.display='flex'">+ Add Image</button>
+        </div>
+        <div class="card" style="margin-bottom:18px">
+          <div class="chdr"><div class="ctitle">📂 Categories</div></div>
+          <div class="cbody">
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+              <input id="sa-gcat-name" placeholder="Category naam (Hot, New, Premium)" style="flex:1;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none"/>
+              <button class="btn btn-r btn-sm" onclick="saAddGlobalCat()">+ Add</button>
+            </div>
+            <div id="sa-global-cat-list"><div style="color:var(--mu);font-size:12px">Loading...</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="chdr"><div class="ctitle">🖼️ Images</div></div>
+          <div class="cbody">
+            <div id="sa-global-img-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
+              <div class="empty"><div class="eic">🖼️</div>Loading...</div>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:18px">
+          <div class="chdr"><div class="ctitle">👤 Site Profile</div></div>
+          <div class="cbody" style="display:grid;gap:10px">
+            <input id="sa-sp-name" placeholder="Site naam (Moon Light X)" style="padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none"/>
+            <input id="sa-sp-avatar" placeholder="Profile photo URL" style="padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none"/>
+            <textarea id="sa-sp-bio" placeholder="Bio / tagline" rows="2" style="padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none;resize:vertical"></textarea>
+            <button class="btn btn-r btn-sm" style="align-self:flex-start" onclick="saSaveSiteProfile()">💾 Save Profile</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SITE ADS PAGE -->
+      <div id="sa-page-site-ads" class="page" style="padding:24px;max-width:800px">
+        <div style="margin-bottom:20px">
+          <h2 style="margin:0;font-size:20px">📢 Site Ads</h2>
+          <div style="font-size:12px;color:var(--mu);margin-top:4px">Yeh ads moonlightx.qd.je (main real site) pe show honge — clients ke ads alag hain</div>
+        </div>
+        <div class="card">
+          <div class="chdr"><div class="ctitle">💻 Ad Codes</div></div>
+          <div class="cbody" style="display:grid;gap:14px">
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:5px">🔻 Popunder</div>
+              <textarea id="sa-gad-popunder" rows="3" placeholder="Popunder ad script" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:11px;font-family:monospace;outline:none;resize:vertical;box-sizing:border-box"></textarea>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:5px">📺 Banner 728×90 (Desktop)</div>
+              <textarea id="sa-gad-banner728" rows="3" placeholder="Banner 728x90 script" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:11px;font-family:monospace;outline:none;resize:vertical;box-sizing:border-box"></textarea>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:5px">📱 Banner 320×50 (Mobile)</div>
+              <textarea id="sa-gad-banner320" rows="3" placeholder="Mobile banner script" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:11px;font-family:monospace;outline:none;resize:vertical;box-sizing:border-box"></textarea>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:5px">🟦 Box 300×250</div>
+              <textarea id="sa-gad-box300" rows="3" placeholder="Box ad script" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:11px;font-family:monospace;outline:none;resize:vertical;box-sizing:border-box"></textarea>
+            </div>
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:5px">🧠 Smart / Social Bar</div>
+              <textarea id="sa-gad-smart" rows="3" placeholder="Smart ad script" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:11px;font-family:monospace;outline:none;resize:vertical;box-sizing:border-box"></textarea>
+            </div>
+            <button class="btn btn-r" onclick="saSaveGlobalAds()" style="align-self:flex-start">💾 Save All Ads</button>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px">
+          <div class="cbody" style="font-size:12px;color:var(--mu);line-height:1.8">
+            ℹ️ Ad codes save karo → Real site pe turant reflect honge. Client ke apne ads alag set hote hain.
+          </div>
+        </div>
+      </div>
+
       </div>
 
     </div>
@@ -429,100 +508,6 @@
 </div>
 
 <!-- ══ SITE GALLERY PAGE ════════════════════════════════════════════════ -->
-<div id="sa-page-site-gallery" class="page" style="padding:24px;max-width:1100px">
-  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
-    <div>
-      <h2 style="margin:0;font-size:20px">🖼️ Site Gallery</h2>
-      <div style="font-size:12px;color:var(--mu);margin-top:4px">Real site pe dikhne wali images — <code>moonlightx.qd.je</code> pe global gallery</div>
-    </div>
-    <button class="btn btn-r" onclick="document.getElementById('sa-global-add-modal').style.display='flex'">+ Add Image</button>
-  </div>
-
-  <!-- Categories -->
-  <div class="card" style="margin-bottom:18px">
-    <div class="chdr"><div class="ctitle">📂 Categories</div></div>
-    <div class="cbody">
-      <div style="display:flex;gap:8px;margin-bottom:12px">
-        <input id="sa-gcat-name" placeholder="Category naam (jaise: Hot, New, Premium)" style="flex:1;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none"/>
-        <button class="btn btn-r btn-sm" onclick="saAddGlobalCat()">+ Add</button>
-      </div>
-      <div id="sa-global-cat-list"><div style="color:var(--mu);font-size:12px">Loading...</div></div>
-    </div>
-  </div>
-
-  <!-- Image Grid -->
-  <div class="card">
-    <div class="chdr"><div class="ctitle">🖼️ Images</div></div>
-    <div class="cbody">
-      <div id="sa-global-img-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
-        <div class="empty"><div class="eic">🖼️</div>Loading...</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Site Profile -->
-  <div class="card" style="margin-top:18px">
-    <div class="chdr"><div class="ctitle">👤 Site Profile (Real site header pe dikhega)</div></div>
-    <div class="cbody" style="display:grid;gap:10px">
-      <input id="sa-sp-name"   placeholder="Site naam (jaise: Moon Light X)" style="padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none"/>
-      <input id="sa-sp-avatar" placeholder="Profile photo URL" style="padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none"/>
-      <textarea id="sa-sp-bio" placeholder="Bio / tagline" rows="2" style="padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none;resize:vertical"></textarea>
-      <button class="btn btn-r btn-sm" style="align-self:flex-start" onclick="saSaveSiteProfile()">💾 Save Profile</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══ SITE ADS PAGE ═════════════════════════════════════════════════════ -->
-<div id="sa-page-site-ads" class="page" style="padding:24px;max-width:800px">
-  <div style="margin-bottom:20px">
-    <h2 style="margin:0;font-size:20px">📢 Site Ads</h2>
-    <div style="font-size:12px;color:var(--mu);margin-top:4px">Yeh ads <strong>moonlightx.qd.je</strong> (main real site) pe show honge — clients ke ads alag hain</div>
-  </div>
-
-  <div class="card">
-    <div class="chdr"><div class="ctitle">💻 Ad Codes</div></div>
-    <div class="cbody" style="display:grid;gap:14px">
-
-      <div>
-        <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">🔻 Popunder Code</div>
-        <div style="font-size:10px;color:var(--mu2);margin-bottom:5px">Page open hone pe ek alag tab mein khuleg</div>
-        <textarea id="sa-gad-popunder" rows="3" placeholder="Popunder ad script code yahaan paste karo" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:11px;font-family:monospace;outline:none;resize:vertical;box-sizing:border-box"></textarea>
-      </div>
-
-      <div>
-        <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">📺 Banner 728×90 (Desktop Leaderboard)</div>
-        <textarea id="sa-gad-banner728" rows="3" placeholder="Banner 728x90 script" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:11px;font-family:monospace;outline:none;resize:vertical;box-sizing:border-box"></textarea>
-      </div>
-
-      <div>
-        <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">📱 Banner 320×50 (Mobile Sticky)</div>
-        <textarea id="sa-gad-banner320" rows="3" placeholder="Mobile banner script" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:11px;font-family:monospace;outline:none;resize:vertical;box-sizing:border-box"></textarea>
-      </div>
-
-      <div>
-        <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">🟦 Box 300×250 (Native / In-Content)</div>
-        <textarea id="sa-gad-box300" rows="3" placeholder="Box ad script" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:11px;font-family:monospace;outline:none;resize:vertical;box-sizing:border-box"></textarea>
-      </div>
-
-      <div>
-        <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">🧠 Smart Ad / Social Bar</div>
-        <textarea id="sa-gad-smart" rows="3" placeholder="Smart / social bar script" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:11px;font-family:monospace;outline:none;resize:vertical;box-sizing:border-box"></textarea>
-      </div>
-
-      <button class="btn btn-r" onclick="saSaveGlobalAds()" style="align-self:flex-start">💾 Save All Ads</button>
-    </div>
-  </div>
-
-  <div class="card" style="margin-top:16px">
-    <div class="cbody" style="font-size:12px;color:var(--mu);line-height:1.8">
-      ℹ️ <strong style="color:var(--tx)">Kaise kaam karta hai:</strong><br>
-      Ad codes save karo → Real site (<code>moonlightx.qd.je</code>) pe turant reflect honge.<br>
-      Popunder script sab se pehle inject hota hai. Banners React app ke slots mein jaate hain.<br>
-      Client ke apne ads client admin panel se alag set hote hain.
-    </div>
-  </div>
-</div>
-
 <!-- ══ ADD GLOBAL IMAGE MODAL ═══════════════════════════════════════════ -->
 <div class="overlay" id="sa-global-add-modal" style="display:none">
   <div class="modal">
