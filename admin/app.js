@@ -1390,6 +1390,7 @@ function clLoadProfile() {
 async function clSaveProfile() {
   const btn = document.getElementById('cl-p-save');
   const msg = document.getElementById('cl-p-msg');
+  if (!clClientData?.id) return;
   btn.disabled = true;
   btn.textContent = 'Saving...';
   try {
@@ -1399,7 +1400,7 @@ async function clSaveProfile() {
       instagram: document.getElementById('cl-p-instagram').value.trim(),
       telegram:  document.getElementById('cl-p-telegram').value.trim(),
     };
-    await set(ref(db, `clients/${clClientId}/info/profile`), profile);
+    await set(ref(db, `clients/${clClientData.id}/info/profile`), profile);
     msg.style.display = 'block';
     msg.style.color   = 'var(--grn)';
     msg.textContent   = '✅ Profile saved! Visitors ko abhi dikhega.';
@@ -1656,6 +1657,16 @@ function clRenderEarning(){
     </tr>`).join('')
   || '<tr><td colspan="4"><div class="empty"><div class="eic">💰</div>No earning history yet</div></td></tr>';
 }
+
+// ── WINDOW EXPORTS ─────────────────────────────────────────────────────
+window.saInitGlobalSite = saInitGlobalSite;
+window.saRenderGlobalGallery = saRenderGlobalGallery;
+window.saAddGlobalImg = saAddGlobalImg;
+window.saDelGlobalImg = saDelGlobalImg;
+window.saAddGlobalCat = saAddGlobalCat;
+window.saDelGlobalCat = saDelGlobalCat;
+window.saSaveGlobalAds = saSaveGlobalAds;
+window.saSaveSiteProfile = saSaveSiteProfile;
 
 // ── INIT ───────────────────────────────────────────────────────────────
 document.getElementById('sa-nb-log').textContent = saActLog.length;

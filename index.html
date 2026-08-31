@@ -100,17 +100,58 @@
       setTimeout(() => obs.disconnect(), 25000);
     }
 
+    /* ── Load app.js script ── */
+    function loadAppScript() {
+      if (document.getElementById('mlx-app-script')) return;
+      const s = document.createElement('script');
+      s.id = 'mlx-app-script';
+      s.src = './app.js';
+      document.body.appendChild(s);
+    }
+
     /* ── Main client resolver ── */
     async function resolveClient() {
       const username = getUsernameFromHash();
 
       if (!username) {
-        window.__mlxImgPath    = 'images';
-        window.__mlxCatPath    = 'categories';
+        window.__mlxImgPath    = 'globalSite/images';
+        window.__mlxCatPath    = 'globalSite/categories';
         window.__mlxClientId   = 'global';
-        window.__mlxClientName = 'Moon Light X';
-        window.__mlxProfile    = {};
-        window.__mlxAds        = {};
+
+        let sp = {};
+        try {
+          const spSnap = await get(ref(db, 'superAdmin/settings/siteProfile'));
+          if (spSnap.exists()) sp = spSnap.val();
+        } catch(e) {}
+
+        window.__mlxClientName = sp.name || 'Moon Light X';
+        document.title = `${window.__mlxClientName} — Premium 18+ Gallery`;
+
+        window.__mlxProfile = {
+          bio:       sp.bio    || '',
+          avatar:    sp.avatar || '',
+          instagram: '',
+          telegram:  '',
+          socialLinks: { instagram: '', telegram: '' }
+        };
+
+        let gAds = {};
+        try {
+          const adSnap = await get(ref(db, 'superAdmin/settings/globalAds'));
+          if (adSnap.exists()) gAds = adSnap.val();
+        } catch(e) {}
+
+        window.__mlxAds = {
+          popunder:  gAds.popunder  || '',
+          banner728: gAds.banner728 || '',
+          banner320: gAds.banner320 || '',
+          box300:    gAds.box300    || '',
+          smart:     gAds.smart     || ''
+        };
+
+        injectPopunder(window.__mlxAds.popunder);
+        injectBannerAds(window.__mlxAds);
+        loadAppScript();
         return;
       }
 
@@ -137,9 +178,8 @@
           window.__mlxCatPath    = `clients/${cid}/categories`;
           window.__mlxClientId   = cid;
           window.__mlxClientName = client.name || 'Moon Light X';
-          if (client.name) document.title = `${client.name} — Premium 18+ Gallery`;
+          document.title = `${window.__mlxClientName} — Premium 18+ Gallery`;
 
-          /* FIX 2: Profile fetch from correct path — pehle client.profile padhta tha jo kabhi save nahi hota */
           let p = {};
           try {
             const pSnap = await get(ref(db, `clients/${cid}/info/profile`));
@@ -170,8 +210,8 @@
           injectBannerAds(window.__mlxAds);
 
         } else {
-          window.__mlxImgPath    = 'images';
-          window.__mlxCatPath    = 'categories';
+          window.__mlxImgPath    = 'globalSite/images';
+          window.__mlxCatPath    = 'globalSite/categories';
           window.__mlxClientId   = 'global';
           window.__mlxClientName = 'Moon Light X';
           window.__mlxProfile    = {};
@@ -179,21 +219,29 @@
         }
       } catch(e) {
         console.warn('Resolver error:', e);
-        window.__mlxImgPath    = 'images';
-        window.__mlxCatPath    = 'categories';
+        window.__mlxImgPath    = 'globalSite/images';
+        window.__mlxCatPath    = 'globalSite/categories';
         window.__mlxClientId   = 'global';
         window.__mlxClientName = 'Moon Light X';
         window.__mlxProfile    = {};
         window.__mlxAds        = {};
       }
+
+      loadAppScript();
     }
 
-    window.addEventListener('hashchange', () => resolveClient().catch(console.warn));
+    window.addEventListener('hashchange', () => {
+      resolveClient().then(() => {
+        if (document.getElementById('mlx-app-script')) {
+          window.location.reload();
+        }
+      }).catch(console.warn);
+    });
+
     await resolveClient();
   </script>
 </head>
 <body>
   <div id="root"></div>
-  <script src="./app.js"></script>
 </body>
 </html>
