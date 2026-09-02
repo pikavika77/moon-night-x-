@@ -952,6 +952,8 @@ function saShowShareModal(clientId) {
   document.getElementById('sm-download-status').style.display   = 'none';
   document.getElementById('sm-deploy-github').dataset.clientId  = clientId;
   document.getElementById('sm-deploy-status').style.display     = 'none';
+  const pathHint = document.getElementById('sm-path-hint');
+  if (pathHint) pathHint.textContent = `clients/${c?.username || clientId}/index.html`;
 
   // Show deployed URL if already deployed
   const depSection = document.getElementById('sm-deployed-section');
@@ -1094,23 +1096,32 @@ document.getElementById('sm-download-site').addEventListener('click', async () =
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     const c    = saClients.find(x => x.id === clientId);
+    const username = c?.username || clientId;
     a.href     = url;
-    a.download = `index-${c?.username || clientId}.html`;
+    a.download = 'index.html';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    status.style.display = 'block';
-    status.style.color   = 'var(--grn)';
-    status.textContent   = '✅ Downloaded! Isko client ke GitHub repo ke root mein index.html naam se upload karo.';
-    toast('✅ Client site file downloaded!');
+    status.style.display    = 'block';
+    status.style.background = '#0a1020';
+    status.style.color      = '#60a5fa';
+    status.style.padding    = '10px';
+    status.style.borderRadius = '8px';
+    status.style.lineHeight = '1.8';
+    status.innerHTML = '✅ <strong>File download ho gayi!</strong><br>' +
+      '⚠️ <strong>ROOT mein upload mat karna!</strong><br>' +
+      'GitHub repo mein yeh folder banao aur iske andar dalo:<br>' +
+      '<code style="background:#1a2a60;padding:2px 6px;border-radius:4px;color:#93c5fd">clients/' + username + '/index.html</code><br>' +
+      '<span style="color:var(--mu);font-size:10px">Ya ⚡ Auto Deploy use karo — woh automatically sahi jagah daalega.</span>';
+    toast('✅ File downloaded!');
   } catch(e) {
     status.style.display = 'block';
     status.style.color   = 'var(--red)';
     status.textContent   = '❌ ' + e.message;
     toast('❌ ' + e.message, 'err');
   }
-  btn.textContent = '⬇️ Download Client index.html';
+  btn.textContent = '⬇️ Download index.html';
   btn.disabled    = false;
 });
 
