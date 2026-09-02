@@ -43,7 +43,7 @@
   <div id="public-url-banner" style="display:none;align-items:center;gap:12px;background:#2d1700;border-bottom:1px solid #f59e0b;padding:10px 20px;font-size:12px;color:#fcd34d;flex-wrap:wrap">
     <span style="font-size:16px">⚠️</span>
     <span style="flex:1"><strong>Public Site URL set nahi hai!</strong> Clients ke liye sahi real site URL generate nahi hogi. Settings mein jaake set karo.</span>
-    <button onclick="document.querySelectorAll('.sb-item').forEach(e=>e.classList.remove('on'));document.querySelector('[data-sa-page=settings]').classList.add('on');document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));document.getElementById('sa-page-settings').classList.add('active');"
+    <button onclick="document.querySelectorAll('.sb-item').forEach(e=>e.classList.remove('on'));document.querySelector('[data-sa-page=settings]').classList.add('on');document.querySelectorAll('.page').forEach(e=>e.classList.remove('on'));document.getElementById('sa-page-settings').classList.add('on');"
       style="background:#f59e0b;color:#000;border:none;border-radius:6px;padding:5px 12px;font-size:11px;font-weight:700;cursor:pointer">⚙️ Settings Kholein</button>
   </div>
 
@@ -192,6 +192,33 @@
             <div style="margin-top:12px;padding:12px 14px;background:var(--bg);border:1px solid var(--br);border-radius:10px;font-size:11px;font-family:monospace;color:var(--mu)">
               Admin URL: <span id="sa-url-preview" style="color:var(--grn)">—</span><br>
               Site URL&nbsp;&nbsp;: <span id="sa-site-preview" style="color:var(--blu)">—</span>
+            </div>
+
+            <div style="margin-top:18px;padding:16px;background:#0a1020;border:1px solid #1a2a60;border-radius:12px">
+              <div style="font-size:12px;font-weight:700;color:#60a5fa;margin-bottom:4px">🚀 GitHub Auto-Deploy Settings</div>
+              <div style="font-size:11px;color:var(--mu);margin-bottom:12px;line-height:1.7">
+                Share modal se <strong style="color:#fff">Deploy to GitHub</strong> click karne pe client ki file automatically tumhare repo mein push ho jayegi.<br>
+                Token banao: <strong style="color:#60a5fa">github.com → Settings → Developer settings → Personal access tokens → Tokens (classic) → Contents: Read & Write</strong>
+              </div>
+              <div style="display:grid;gap:10px">
+                <div>
+                  <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:5px">GitHub Personal Access Token</div>
+                  <input id="sa-gh-token" type="password" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                    style="width:100%;padding:10px 14px;background:var(--bg);border:1px solid #1a2a60;border-radius:10px;color:var(--tx);font-size:13px;outline:none;box-sizing:border-box;font-family:monospace"/>
+                </div>
+                <div>
+                  <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:5px">GitHub Repo (owner/repo)</div>
+                  <input id="sa-gh-repo" type="text" placeholder="pikavika77/moonlightx"
+                    style="width:100%;padding:10px 14px;background:var(--bg);border:1px solid #1a2a60;border-radius:10px;color:var(--tx);font-size:13px;outline:none;box-sizing:border-box;font-family:monospace"/>
+                </div>
+                <div>
+                  <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:5px">Branch (default: main)</div>
+                  <input id="sa-gh-branch" type="text" placeholder="main"
+                    style="width:100%;padding:10px 14px;background:var(--bg);border:1px solid #1a2a60;border-radius:10px;color:var(--tx);font-size:13px;outline:none;box-sizing:border-box;font-family:monospace"/>
+                </div>
+                <button class="btn" id="sa-save-gh" style="background:#1d4ed8;color:#fff;align-self:flex-start">💾 Save GitHub Settings</button>
+                <div id="sa-gh-status" style="font-size:11px;display:none"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -574,12 +601,38 @@
         <button class="btn btn-sm" style="background:#0a1225;color:var(--blu);border:1px solid #1a3060" id="sm-copy-site">📋 Copy</button>
         <button class="btn btn-g btn-sm" id="sm-open-site">🔗 Open</button>
       </div>
-      <div style="font-size:10px;color:var(--mu2);margin-top:6px">Visitors is link pe jaayenge — admin panel mein jo update karo woh yahan automatically aata hai</div>
+      <div style="font-size:10px;color:var(--mu2);margin-top:6px">Hash route link — kisi bhi deploy ki zaroorat nahi, turant kaam karta hai</div>
+    </div>
+
+    <div id="sm-deployed-section" style="display:none;margin-bottom:20px">
+      <div style="font-size:10px;font-weight:800;color:#4ade80;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">🚀 Deployed Site URL</div>
+      <div style="background:#0a1a0a;border:1px solid #1a4020;border-radius:12px;padding:12px 14px;margin-bottom:8px">
+        <div id="sm-deployed-url" style="font-size:12px;color:#4ade80;font-family:monospace;word-break:break-all"></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-sm" style="background:#0a1a0a;color:#4ade80;border:1px solid #1a4020" id="sm-copy-deployed">📋 Copy</button>
+        <button class="btn btn-g btn-sm" id="sm-open-deployed">🔗 Open</button>
+      </div>
+      <div style="font-size:10px;color:var(--mu2);margin-top:6px">GitHub Pages pe deployed standalone site — iska link clients ko do</div>
     </div>
 
     <div style="background:var(--bg);border:1px solid var(--br);border-radius:12px;padding:14px;margin-bottom:16px">
       <div style="font-size:10px;font-weight:700;color:var(--mu);margin-bottom:8px;text-transform:uppercase">📋 Copy Both (WhatsApp/Email ready)</div>
       <button class="btn btn-g" id="sm-copy-both" style="width:100%;justify-content:center">📋 Copy Both Links</button>
+    </div>
+
+    <div style="background:#0a1020;border:1px solid #1a2a60;border-radius:12px;padding:14px;margin-bottom:10px">
+      <div style="font-size:10px;font-weight:700;color:#60a5fa;margin-bottom:6px;text-transform:uppercase">🚀 Auto Deploy to GitHub</div>
+      <div style="font-size:11px;color:var(--mu);margin-bottom:10px;line-height:1.6">Directly <code style="background:var(--s2);padding:2px 5px;border-radius:4px">clients/{username}/index.html</code> push karega tumhare repo mein. URL turant live ho jayega.</div>
+      <button class="btn" id="sm-deploy-github" style="width:100%;justify-content:center;background:#1d4ed8;color:#fff">🚀 Deploy to GitHub</button>
+      <div id="sm-deploy-status" style="font-size:11px;margin-top:8px;display:none;line-height:1.6;padding:8px;border-radius:6px"></div>
+    </div>
+
+    <div style="background:#0a1a0a;border:1px solid #1a4020;border-radius:12px;padding:14px;margin-bottom:16px">
+      <div style="font-size:10px;font-weight:700;color:var(--grn);margin-bottom:6px;text-transform:uppercase">⬇️ Manual Download</div>
+      <div style="font-size:11px;color:var(--mu);margin-bottom:10px;line-height:1.6">Ya manually download karke GitHub pe upload karo.</div>
+      <button class="btn btn-grn" id="sm-download-site" style="width:100%;justify-content:center">⬇️ Download index.html</button>
+      <div id="sm-download-status" style="font-size:11px;color:var(--mu);margin-top:6px;display:none"></div>
     </div>
 
     <button class="btn btn-r" id="sm-close" style="width:100%;justify-content:center">Done ✓</button>
