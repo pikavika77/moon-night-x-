@@ -514,6 +514,7 @@ function saRenderDashLog() {
 
 // DB
 function saInitDB() {
+  saInitGlobalSite();
   // Auto-load public site URL from Firebase settings
   // Load saved URLs from Firebase
   get(ref(db, 'superAdmin/settings')).then(snap => {
@@ -627,6 +628,13 @@ function saPopulateGlobalCatSelect() {
     globalSiteCats.map(c => `<option value="${escapeHTML(c.id)}">${escapeHTML(c.name||c.id)}</option>`).join('');
   if (cur) sel.value = cur;
 }
+
+window.saAddGlobalImg = saAddGlobalImg;
+window.saDelGlobalImg = saDelGlobalImg;
+window.saAddGlobalCat = saAddGlobalCat;
+window.saDelGlobalCat = saDelGlobalCat;
+window.saSaveGlobalAds = saSaveGlobalAds;
+window.saSaveSiteProfile = saSaveSiteProfile;
 
 async function saAddGlobalImg() {
   const title = document.getElementById('sa-gadd-title')?.value.trim();
