@@ -773,9 +773,6 @@ document.getElementById('sa-q-client')?.addEventListener('input', saRenderClient
 
 // ── REAL SITE GENERATION ───────────────────────────────────────────────
 async function generateClientSiteHTML(clientId) {
-  const appBase = getAppFilesBase();
-  if (!appBase) throw new Error('App Files URL set nahi hai! Settings → "App Files Base URL" mein daalo.');
-
   const c = saClients.find(x => x.id === clientId) || {};
   let profile = {};
   try {
@@ -796,19 +793,9 @@ async function generateClientSiteHTML(clientId) {
   const adBox300    = c.adBox300    || '';
   const adSmart     = c.adSmart     || '';
 
-  // Firebase config (same as real site)
-  const FB = JSON.stringify({
-    apiKey: "AIzaSyACW8aFQmlaoaxNtE55m8Pck6H8BRlfEbs",
-    authDomain: "moon-night-x.firebaseapp.com",
-    databaseURL: "https://moon-night-x-default-rtdb.firebaseio.com",
-    projectId: "moon-night-x",
-    storageBucket: "moon-night-x.firebasestorage.app",
-    messagingSenderId: "779934381788",
-    appId: "1:779934381788:web:1426fa035171015634a619"
-  });
-
   const esc = v => JSON.stringify(v || '');
 
+  // app.js aur app.css repo root se load hogi (../../app.css = clients/riya/ se 2 level upar)
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -818,17 +805,35 @@ async function generateClientSiteHTML(clientId) {
   <meta name="description" content="${name.replace(/"/g,'&quot;')} – premium curated 18+ adult gallery. Fast, mobile-first platform with HD photography. Adults 18+ only.">
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#050505">
-  <link rel="stylesheet" href="${appBase}/app.css">
+  <link rel="stylesheet" href="../../app.css">
 
-  <!-- Popunder placeholder -->
+  <!-- POPUNDER placeholder -->
   <div id="mlx-popunder-slot"></div>
 
-  <script>
-    /* ── Client hardcoded — no hash routing ── */
+  <script type="module">
+    import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+    import { getDatabase, ref, get, update }   from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
+
+    const FB = {
+      apiKey:            "AIzaSyACW8aFQmlaoaxNtE55m8Pck6H8BRlfEbs",
+      authDomain:        "moon-night-x.firebaseapp.com",
+      databaseURL:       "https://moon-night-x-default-rtdb.firebaseio.com",
+      projectId:         "moon-night-x",
+      storageBucket:     "moon-night-x.firebasestorage.app",
+      messagingSenderId: "779934381788",
+      appId:             "1:779934381788:web:1426fa035171015634a619"
+    };
+
+    const fbApp = getApps().length ? getApp() : initializeApp(FB);
+    const db    = getDatabase(fbApp);
+
+    /* ── Client data hardcoded — no hash routing needed ── */
     window.__mlxImgPath    = 'clients/${id}/images';
     window.__mlxCatPath    = 'clients/${id}/categories';
     window.__mlxClientId   = ${esc(id)};
     window.__mlxClientName = ${esc(name)};
+
+    /* ── Profile: pehle hardcoded, phir Firebase se live update ── */
     window.__mlxProfile = {
       bio:       ${esc(bio)},
       avatar:    ${esc(avatar)},
@@ -836,6 +841,25 @@ async function generateClientSiteHTML(clientId) {
       telegram:  ${esc(telegram)},
       socialLinks: { instagram: ${esc(instagram)}, telegram: ${esc(telegram)} }
     };
+
+    /* Live profile update from Firebase */
+    try {
+      const pSnap = await get(ref(db, 'clients/${id}/info/profile'));
+      if (pSnap.exists()) {
+        const p = pSnap.val();
+        window.__mlxProfile = {
+          bio:       p.bio       || ${esc(bio)},
+          avatar:    p.avatar    || ${esc(avatar)},
+          instagram: p.instagram || ${esc(instagram)},
+          telegram:  p.telegram  || ${esc(telegram)},
+          socialLinks: {
+            instagram: p.instagram || ${esc(instagram)},
+            telegram:  p.telegram  || ${esc(telegram)}
+          }
+        };
+      }
+    } catch(e) {}
+
     window.__mlxAds = {
       popunder:  ${esc(adPopunder)},
       banner728: ${esc(adBanner728)},
@@ -843,9 +867,10 @@ async function generateClientSiteHTML(clientId) {
       box300:    ${esc(adBox300)},
       smart:     ${esc(adSmart)}
     };
+
     document.title = window.__mlxClientName + ' — Premium 18+ Gallery';
 
-    /* Execute scripts injected via innerHTML */
+    /* ── Execute scripts injected via innerHTML ── */
     function execScriptsIn(el) {
       el.querySelectorAll('script').forEach(old => {
         const s = document.createElement('script');
@@ -855,17 +880,15 @@ async function generateClientSiteHTML(clientId) {
       });
     }
 
-    /* Inject popunder immediately */
-    (function() {
-      const code = window.__mlxAds.popunder;
+    /* ── Inject popunder ── */
+    function injectPopunder(code) {
       if (!code) return;
       const div = document.getElementById('mlx-popunder-slot');
       if (div) { div.innerHTML = code; execScriptsIn(div); }
-    })();
+    }
 
-    /* Inject banner/box ads after React mounts */
-    (function() {
-      const ads = window.__mlxAds;
+    /* ── Inject banner/box ads into React ad slots ── */
+    function injectBannerAds(ads) {
       if (!ads) return;
       const SLOT_MAP = {
         'adsterra-top-leaderboard':    ads.banner728 || '',
@@ -874,44 +897,42 @@ async function generateClientSiteHTML(clientId) {
         'adsterra-mobile-sticky':      ads.banner320 || '',
         'adsterra-bottom-footer':      ads.banner728 || ''
       };
-      const injected = new Set();
-      const total = Object.values(SLOT_MAP).filter(Boolean).length;
-      if (!total) return;
+      const injected   = new Set();
+      const totalSlots = Object.values(SLOT_MAP).filter(Boolean).length;
+      if (totalSlots === 0) return;
       const obs = new MutationObserver(() => {
-        Object.entries(SLOT_MAP).forEach(([slotId, code]) => {
-          if (!code || injected.has(slotId)) return;
-          const el = document.getElementById(slotId);
-          if (el) { el.innerHTML = code; el.dataset.injected = 'true'; execScriptsIn(el); injected.add(slotId); }
+        Object.entries(SLOT_MAP).forEach(([sid, code]) => {
+          if (!code || injected.has(sid)) return;
+          const el = document.getElementById(sid);
+          if (el) { el.innerHTML = code; el.dataset.injected = 'true'; execScriptsIn(el); injected.add(sid); }
         });
-        if (injected.size >= total) obs.disconnect();
+        if (injected.size >= totalSlots) obs.disconnect();
       });
       obs.observe(document.body, { childList: true, subtree: true });
       setTimeout(() => obs.disconnect(), 25000);
-    })();
+    }
 
-    /* Visit tracking */
-    (async function() {
-      try {
-        const { initializeApp } = await import('https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js');
-        const { getDatabase, ref, get, update } = await import('https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js');
-        const fbApp = initializeApp(${FB}, 'tracker-${id}');
-        const db = getDatabase(fbApp);
-        const today = new Date().toISOString().slice(0, 10);
-        const infoRef = ref(db, 'clients/${id}/info');
-        const snap = await get(infoRef);
-        const cur  = snap.exists() ? snap.val() : {};
-        const upd  = { totalVisits: (cur.totalVisits || 0) + 1 };
-        if (cur.todayKey === today) { upd.todayVisits = (cur.todayVisits || 0) + 1; }
-        else { upd.todayVisits = 1; upd.todayKey = today; }
-        await update(infoRef, upd);
-        await update(ref(db, 'superAdmin/clients/${id}'), upd).catch(() => {});
-      } catch(e) { console.warn('Visit track:', e.message); }
-    })();
+    injectPopunder(window.__mlxAds.popunder);
+    injectBannerAds(window.__mlxAds);
+
+    /* ── Visit tracking ── */
+    try {
+      const today   = new Date().toISOString().slice(0, 10);
+      const infoRef = ref(db, 'clients/${id}/info');
+      const snap    = await get(infoRef);
+      const cur     = snap.exists() ? snap.val() : {};
+      const upd     = { totalVisits: (cur.totalVisits || 0) + 1 };
+      if (cur.todayKey === today) { upd.todayVisits = (cur.todayVisits || 0) + 1; }
+      else { upd.todayVisits = 1; upd.todayKey = today; }
+      await update(infoRef, upd);
+      await update(ref(db, 'superAdmin/clients/${id}'), upd).catch(() => {});
+    } catch(e) { console.warn('Visit track:', e.message); }
+
   <\/script>
 </head>
 <body>
   <div id="root"></div>
-  <script src="${appBase}/app.js"><\/script>
+  <script src="../../app.js"><\/script>
 </body>
 </html>`;
 }
@@ -1618,7 +1639,6 @@ function clLoadProfile() {
 }
 
 async function clSaveProfile() {
-  if (!clClientData?.id) return;
   const btn = document.getElementById('cl-p-save');
   const msg = document.getElementById('cl-p-msg');
   btn.disabled = true;
