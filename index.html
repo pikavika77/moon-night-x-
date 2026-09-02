@@ -105,12 +105,44 @@
       const username = getUsernameFromHash();
 
       if (!username) {
-        window.__mlxImgPath    = 'images';
-        window.__mlxCatPath    = 'categories';
+        window.__mlxImgPath    = 'globalSite/images';
+        window.__mlxCatPath    = 'globalSite/categories';
         window.__mlxClientId   = 'global';
         window.__mlxClientName = 'Moon Light X';
-        window.__mlxProfile    = {};
-        window.__mlxAds        = {};
+
+        /* Load global ads and site profile */
+        try {
+          const [adsSnap, profSnap] = await Promise.all([
+            get(ref(db, 'superAdmin/settings/globalAds')),
+            get(ref(db, 'superAdmin/settings/siteProfile'))
+          ]);
+          const ads  = adsSnap.exists()  ? adsSnap.val()  : {};
+          const prof = profSnap.exists() ? profSnap.val() : {};
+          window.__mlxAds = {
+            popunder:  ads.popunder  || '',
+            banner728: ads.banner728 || '',
+            banner320: ads.banner320 || '',
+            box300:    ads.box300    || '',
+            smart:     ads.smart     || ''
+          };
+          window.__mlxProfile = {
+            bio:    prof.bio    || '',
+            avatar: prof.avatar || '',
+            instagram: '',
+            telegram:  '',
+            socialLinks: { instagram: '', telegram: '' }
+          };
+          if (prof.name) {
+            window.__mlxClientName = prof.name;
+            document.title = `${prof.name} — Premium 18+ Gallery`;
+          }
+          injectPopunder(window.__mlxAds.popunder);
+          injectBannerAds(window.__mlxAds);
+        } catch(e) {
+          console.warn('Global site data load error:', e);
+          window.__mlxAds     = {};
+          window.__mlxProfile = {};
+        }
         return;
       }
 
@@ -170,8 +202,8 @@
           injectBannerAds(window.__mlxAds);
 
         } else {
-          window.__mlxImgPath    = 'images';
-          window.__mlxCatPath    = 'categories';
+          window.__mlxImgPath    = 'globalSite/images';
+          window.__mlxCatPath    = 'globalSite/categories';
           window.__mlxClientId   = 'global';
           window.__mlxClientName = 'Moon Light X';
           window.__mlxProfile    = {};
@@ -179,8 +211,8 @@
         }
       } catch(e) {
         console.warn('Resolver error:', e);
-        window.__mlxImgPath    = 'images';
-        window.__mlxCatPath    = 'categories';
+        window.__mlxImgPath    = 'globalSite/images';
+        window.__mlxCatPath    = 'globalSite/categories';
         window.__mlxClientId   = 'global';
         window.__mlxClientName = 'Moon Light X';
         window.__mlxProfile    = {};

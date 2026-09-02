@@ -549,17 +549,27 @@ function saInitDB() {
 
 // ── GLOBAL SITE GALLERY & ADS ────────────────────────────────────────────
 let globalImages = [], globalSiteCats = [];
+let _globalSiteListening = false; // guard: prevents duplicate onValue listeners
 
 function saInitGlobalSite() {
-  onValue(ref(db, 'globalSite/images'), snap => {
-    globalImages = snapToArray(snap);
+  // Only register Firebase realtime listeners once
+  if (!_globalSiteListening) {
+    _globalSiteListening = true;
+    onValue(ref(db, 'globalSite/images'), snap => {
+      globalImages = snapToArray(snap);
+      saRenderGlobalGallery();
+    });
+    onValue(ref(db, 'globalSite/categories'), snap => {
+      globalSiteCats = snapToArray(snap);
+      saRenderGlobalCats();
+      saPopulateGlobalCatSelect();
+    });
+  } else {
+    // Re-render with already-loaded data when switching between site-gallery/site-ads
     saRenderGlobalGallery();
-  });
-  onValue(ref(db, 'globalSite/categories'), snap => {
-    globalSiteCats = snapToArray(snap);
     saRenderGlobalCats();
     saPopulateGlobalCatSelect();
-  });
+  }
   // Load ads
   get(ref(db, 'superAdmin/settings/globalAds')).then(snap => {
     if (!snap.exists()) return;
@@ -917,6 +927,26 @@ function saShowShareModal(clientId) {
   document.getElementById('sm-name').textContent       = c.name;
   document.getElementById('sm-admin-url').textContent  = adminUrl;
   document.getElementById('sm-site-url').textContent   = siteUrl;
+  document.getElementById('sm-download-site').dataset.clientId  = clientId;
+  document.getElementById('sm-download-status').style.display   = 'none';
+  document.getElementById('sm-deploy-github').dataset.clientId  = clientId;
+  document.getElementById('sm-deploy-status').style.display     = 'none';
+
+  // Show deployed URL if already deployed
+  const depSection = document.getElementById('sm-deployed-section');
+  const depUrl     = document.getElementById('sm-deployed-url');
+  if (c.deployedUrl) {
+    depSection.style.display = 'block';
+    depUrl.textContent       = c.deployedUrl;
+    document.getElementById('sm-copy-deployed').onclick = () => {
+      navigator.clipboard.writeText(c.deployedUrl);
+      document.getElementById('sm-copy-deployed').textContent = '✅ Copied!';
+      setTimeout(() => document.getElementById('sm-copy-deployed').textContent = '📋 Copy', 2000);
+    };
+    document.getElementById('sm-open-deployed').onclick = () => window.open(c.deployedUrl, '_blank');
+  } else {
+    depSection.style.display = 'none';
+  }
 
   document.getElementById('sm-copy-admin').onclick = () => {
     navigator.clipboard.writeText(adminUrl);
@@ -970,6 +1000,98 @@ Hi! Ye rahe aapke Moon Light X ke 2 links:\n\n⚙️ Admin Panel (images manage 
   document.getElementById('share-modal').style.display = 'flex';
 }
 document.getElementById('sm-close').addEventListener('click', () => document.getElementById('share-modal').style.display = 'none');
+
+document.getElementById('sm-deploy-github').addEventListener('click', async () => {
+  const btn      = document.getElementById('sm-deploy-github');
+  const status   = document.getElementById('sm-deploy-status');
+  const clientId = btn.dataset.clientId;
+  if (!clientId) { toast('❌ Client ID missing', 'err'); return; }
+
+  if (!ghGetToken()) {
+    status.style.display    = 'block';
+    status.style.background = '#2d0a0a';
+    status.style.color      = 'var(--red)';
+    status.innerHTML = '❌ GitHub Token nahi hai!<br>Settings mein jaao → GitHub Auto-Deploy Settings → Token daalo → Save karo.';
+    return;
+  }
+
+  btn.textContent = '⏳ Deploying...';
+  btn.disabled    = true;
+  status.style.display    = 'block';
+  status.style.background = '#0a1020';
+  status.style.color      = '#60a5fa';
+  status.textContent      = '🚀 GitHub pe push ho raha hai...';
+
+  try {
+    const deployedUrl = await deployToGitHub(clientId);
+    const c = saClients.find(x => x.id === clientId);
+    status.style.background = '#0a1a0a';
+    status.style.color      = 'var(--grn)';
+    status.innerHTML = `✅ Deploy successful!<br>
+      <strong>Live URL:</strong> <a href="${deployedUrl}" target="_blank"
+        style="color:#4ade80;word-break:break-all">${deployedUrl}</a><br>
+      <span style="color:var(--mu);font-size:10px">GitHub Pages pe 1-2 min mein live hoga.</span>`;
+    // Show deployed section in modal
+    const depSection = document.getElementById('sm-deployed-section');
+    const depUrl     = document.getElementById('sm-deployed-url');
+    if (depSection && depUrl) {
+      depSection.style.display = 'block';
+      depUrl.textContent       = deployedUrl;
+      document.getElementById('sm-copy-deployed').onclick = () => {
+        navigator.clipboard.writeText(deployedUrl);
+        document.getElementById('sm-copy-deployed').textContent = '✅ Copied!';
+        setTimeout(() => document.getElementById('sm-copy-deployed').textContent = '📋 Copy', 2000);
+      };
+      document.getElementById('sm-open-deployed').onclick = () => window.open(deployedUrl, '_blank');
+    }
+    toast('✅ Deployed! ' + deployedUrl);
+    saAddLog('add', `Deployed "${c?.name}" to GitHub: ${deployedUrl}`);
+  } catch(e) {
+    status.style.background = '#2d0a0a';
+    status.style.color      = 'var(--red)';
+    status.textContent      = '❌ ' + e.message;
+    toast('❌ ' + e.message, 'err');
+  }
+
+  btn.textContent = '🚀 Deploy to GitHub';
+  btn.disabled    = false;
+});
+
+document.getElementById('sm-download-site').addEventListener('click', async () => {
+  const btn    = document.getElementById('sm-download-site');
+  const status = document.getElementById('sm-download-status');
+  const clientId = btn.dataset.clientId;
+  if (!clientId) { toast('❌ Client ID missing', 'err'); return; }
+
+  btn.textContent = '⏳ Generating...';
+  btn.disabled    = true;
+  status.style.display = 'none';
+
+  try {
+    const html = await generateClientSiteHTML(clientId);
+    const blob = new Blob([html], { type: 'text/html' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const c    = saClients.find(x => x.id === clientId);
+    a.href     = url;
+    a.download = `index-${c?.username || clientId}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    status.style.display = 'block';
+    status.style.color   = 'var(--grn)';
+    status.textContent   = '✅ Downloaded! Isko client ke GitHub repo ke root mein index.html naam se upload karo.';
+    toast('✅ Client site file downloaded!');
+  } catch(e) {
+    status.style.display = 'block';
+    status.style.color   = 'var(--red)';
+    status.textContent   = '❌ ' + e.message;
+    toast('❌ ' + e.message, 'err');
+  }
+  btn.textContent = '⬇️ Download Client index.html';
+  btn.disabled    = false;
+});
 
 // CLIENT MODAL
 document.getElementById('sa-cm-pct').addEventListener('input', () => {
@@ -1262,6 +1384,80 @@ document.getElementById('sa-btn-earn').addEventListener('click', async () => {
   } catch(e){ toast('❌ '+e.message,'err'); }
 });
 
+// ── GITHUB DEPLOY ─────────────────────────────────────────────────────
+
+function ghGetToken()  { return localStorage.getItem('mnx_gh_token')  || ''; }
+function ghGetRepo()   { return localStorage.getItem('mnx_gh_repo')   || 'pikavika77/moonlightx'; }
+function ghGetBranch() { return localStorage.getItem('mnx_gh_branch') || 'main'; }
+
+async function deployToGitHub(clientId) {
+  const token  = ghGetToken();
+  const repo   = ghGetRepo();
+  const branch = ghGetBranch();
+
+  if (!token) throw new Error('GitHub Token nahi hai! Settings mein pehle token daalo.');
+  if (!repo)  throw new Error('GitHub Repo nahi hai! Settings mein repo daalo (e.g. pikavika77/moonlightx).');
+
+  const c = saClients.find(x => x.id === clientId);
+  if (!c) throw new Error('Client nahi mila!');
+
+  // Generate HTML
+  const html = await generateClientSiteHTML(clientId);
+  const path = `clients/${c.username}/index.html`;
+
+  // Check if file already exists (to get SHA for update)
+  const apiBase = `https://api.github.com/repos/${repo}/contents/${path}`;
+  let sha = null;
+  try {
+    const existing = await fetch(`${apiBase}?ref=${branch}`, {
+      headers: {
+        'Authorization': `token ${token}`,
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    });
+    if (existing.ok) {
+      const data = await existing.json();
+      sha = data.sha;
+    }
+  } catch(e) {}
+
+  // Base64 encode the HTML
+  const content = btoa(unescape(encodeURIComponent(html)));
+
+  // Push to GitHub
+  const body = {
+    message: `Deploy: ${c.name} (@${c.username}) — ${new Date().toISOString()}`,
+    content,
+    branch
+  };
+  if (sha) body.sha = sha; // needed for update
+
+  const res = await fetch(apiBase, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `token ${token}`,
+      'Accept': 'application/vnd.github.v3+json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message || `GitHub API error: ${res.status}`);
+  }
+
+  // Save deployed URL to Firebase
+  const publicBase = getPublicBase();
+  const deployedUrl = `${publicBase}/clients/${c.username}/`;
+  try {
+    await update(ref(db, `superAdmin/clients/${clientId}`), { deployedUrl, deployedAt: new Date().toISOString() });
+    await update(ref(db, `clients/${clientId}/info`), { deployedUrl, deployedAt: new Date().toISOString() });
+  } catch(e) {}
+
+  return deployedUrl;
+}
+
 // SETTINGS
 function saLoadSettings() {
   const base       = getBase();       // https://moonlightx.qd.je/admin
@@ -1272,6 +1468,15 @@ function saLoadSettings() {
   }
   document.getElementById('sa-url-preview').textContent  = base + '/#/admin/username';
   document.getElementById('sa-site-preview').textContent = publicBase + '/#/username';
+
+  // Load GitHub settings
+  const ghT = document.getElementById('sa-gh-token');
+  const ghR = document.getElementById('sa-gh-repo');
+  const ghB = document.getElementById('sa-gh-branch');
+  if (ghT) ghT.value = ghGetToken();
+  if (ghR) ghR.value = ghGetRepo();
+  if (ghB) ghB.value = ghGetBranch() || 'main';
+
   checkPublicUrlWarning();
 }
 document.getElementById('sa-base-url').addEventListener('input', () => {
@@ -1296,6 +1501,31 @@ document.getElementById('sa-save-base').addEventListener('click', () => {
   checkPublicUrlWarning();
   toast('✅ URLs save ho gaye!');
   saAddLog('edit','URLs — Admin: '+url+' | Public: '+(pubUrl||'auto-detect'));
+});
+
+// GITHUB SETTINGS SAVE
+document.getElementById('sa-save-gh')?.addEventListener('click', () => {
+  const token  = document.getElementById('sa-gh-token')?.value.trim();
+  const repo   = document.getElementById('sa-gh-repo')?.value.trim();
+  const branch = document.getElementById('sa-gh-branch')?.value.trim() || 'main';
+  const status = document.getElementById('sa-gh-status');
+
+  if (!token || !repo) {
+    status.style.display = 'block';
+    status.style.color   = 'var(--red)';
+    status.textContent   = '❌ Token aur Repo dono zaroori hain!';
+    return;
+  }
+
+  localStorage.setItem('mnx_gh_token',  token);
+  localStorage.setItem('mnx_gh_repo',   repo);
+  localStorage.setItem('mnx_gh_branch', branch);
+
+  status.style.display = 'block';
+  status.style.color   = 'var(--grn)';
+  status.textContent   = `✅ Saved! Repo: ${repo} | Branch: ${branch}`;
+  toast('✅ GitHub settings save ho gaye!');
+  setTimeout(() => { status.style.display = 'none'; }, 4000);
 });
 
 // ACTIVITY CONTROLS
@@ -1388,9 +1618,9 @@ function clLoadProfile() {
 }
 
 async function clSaveProfile() {
+  if (!clClientData?.id) return;
   const btn = document.getElementById('cl-p-save');
   const msg = document.getElementById('cl-p-msg');
-  if (!clClientData?.id) return;
   btn.disabled = true;
   btn.textContent = 'Saving...';
   try {
@@ -1400,7 +1630,7 @@ async function clSaveProfile() {
       instagram: document.getElementById('cl-p-instagram').value.trim(),
       telegram:  document.getElementById('cl-p-telegram').value.trim(),
     };
-    await set(ref(db, `clients/${clClientData.id}/info/profile`), profile);
+    await set(ref(db, `clients/${clClientData?.id}/info/profile`), profile);
     msg.style.display = 'block';
     msg.style.color   = 'var(--grn)';
     msg.textContent   = '✅ Profile saved! Visitors ko abhi dikhega.';
@@ -1657,16 +1887,6 @@ function clRenderEarning(){
     </tr>`).join('')
   || '<tr><td colspan="4"><div class="empty"><div class="eic">💰</div>No earning history yet</div></td></tr>';
 }
-
-// ── WINDOW EXPORTS ─────────────────────────────────────────────────────
-window.saInitGlobalSite = saInitGlobalSite;
-window.saRenderGlobalGallery = saRenderGlobalGallery;
-window.saAddGlobalImg = saAddGlobalImg;
-window.saDelGlobalImg = saDelGlobalImg;
-window.saAddGlobalCat = saAddGlobalCat;
-window.saDelGlobalCat = saDelGlobalCat;
-window.saSaveGlobalAds = saSaveGlobalAds;
-window.saSaveSiteProfile = saSaveSiteProfile;
 
 // ── INIT ───────────────────────────────────────────────────────────────
 document.getElementById('sa-nb-log').textContent = saActLog.length;
