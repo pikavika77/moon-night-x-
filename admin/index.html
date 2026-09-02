@@ -629,10 +629,13 @@
     </div>
 
     <div style="background:#0a1a0a;border:1px solid #1a4020;border-radius:12px;padding:14px;margin-bottom:16px">
-      <div style="font-size:10px;font-weight:700;color:var(--grn);margin-bottom:6px;text-transform:uppercase">⬇️ Manual Download</div>
-      <div style="font-size:11px;color:var(--mu);margin-bottom:10px;line-height:1.6">Ya manually download karke GitHub pe upload karo.</div>
+      <div style="font-size:10px;font-weight:700;color:var(--grn);margin-bottom:6px;text-transform:uppercase">⬇️ Manual Download (Sirf token na ho tab)</div>
+      <div style="font-size:11px;color:var(--mu);margin-bottom:6px;line-height:1.7">
+        File download hogi — GitHub repo mein <strong style="color:#fff">root mein nahi</strong>, balki yeh folder banao:<br>
+        <code id="sm-path-hint" style="background:#1a2a60;padding:3px 8px;border-radius:5px;color:#93c5fd;font-size:12px">clients/{username}/index.html</code>
+      </div>
       <button class="btn btn-grn" id="sm-download-site" style="width:100%;justify-content:center">⬇️ Download index.html</button>
-      <div id="sm-download-status" style="font-size:11px;color:var(--mu);margin-top:6px;display:none"></div>
+      <div id="sm-download-status" style="font-size:11px;margin-top:8px;display:none"></div>
     </div>
 
     <button class="btn btn-r" id="sm-close" style="width:100%;justify-content:center">Done ✓</button>
