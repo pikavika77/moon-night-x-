@@ -117,22 +117,26 @@ function navigate(path) {
 }
 
 function getDefaultBase() {
-  // Returns the actual URL where this admin panel is deployed
-  // e.g. https://moonlightx.qd.je/admin
-  let path = window.location.pathname || '';
-  path = path.replace(/\/index\.(html?|php)$/i, '');
-  path = path.replace(/\/+$/, '');
-  return (window.location.origin + path).replace(/\/+$/, '');
+  // moonlightx.qd.je custom domain pe hamesha /admin hoga
+  const origin = window.location.origin;
+  const path   = (window.location.pathname || '').replace(/\/index\.(html?|php)$/i,'').replace(/\/+$/,'');
+  // Agar custom domain hai (not github.io) → origin + /admin
+  if (!origin.includes('github.io')) {
+    return origin + '/admin';
+  }
+  // github.io fallback
+  return (origin + path).replace(/\/+$/,'');
 }
 
 function getDefaultPublicBase() {
-  // Returns root domain — strips /admin to get the real site base
-  let path = window.location.pathname || '';
-  path = path.replace(/\/index\.(html?|php)$/i, '');
-  path = path.replace(/\/+$/, '');
-  path = path.replace(/\/admin$/i, '');
-  path = path.replace(/\/+$/, '');
-  return (window.location.origin + path).replace(/\/+$/, '');
+  // Real site base — always custom domain root
+  const origin = window.location.origin;
+  const path   = (window.location.pathname || '').replace(/\/index\.(html?|php)$/i,'').replace(/\/+$/,'');
+  if (!origin.includes('github.io')) {
+    return origin; // https://moonlightx.qd.je
+  }
+  // github.io fallback: strip /admin
+  return (origin + path.replace(/\/admin$/i,'')).replace(/\/+$/,'');
 }
 
 function getBase() {
@@ -175,14 +179,8 @@ function checkPublicUrlWarning() {
 
 function getClientSiteUrl(c, base) {
   if (!c) return '';
-  const publicBase = getPublicBase();
-  if (!c.siteUrl || c.siteUrl.includes('/#/' + c.username) || c.siteUrl.startsWith(window.location.origin + '/#/')) {
-    return `${publicBase}/#/${c.username}`;
-  }
-  // Update stale siteUrl if it's pointing to admin domain
-  if (c.siteUrl && c.siteUrl.includes(window.location.hostname) && !c.siteUrl.includes('/#/admin/')) {
-    return `${publicBase}/#/${c.username}`;
-  }
+  // Always use canonical public base — never use stale stored siteUrl
+  const publicBase = getDefaultPublicBase(); // https://moonlightx.qd.je
   return `${publicBase}/#/${c.username}`;
 }
 
@@ -514,7 +512,6 @@ function saRenderDashLog() {
 
 // DB
 function saInitDB() {
-  saInitGlobalSite();
   // Auto-load public site URL from Firebase settings
   // Load saved URLs from Firebase
   get(ref(db, 'superAdmin/settings')).then(snap => {
@@ -628,13 +625,6 @@ function saPopulateGlobalCatSelect() {
     globalSiteCats.map(c => `<option value="${escapeHTML(c.id)}">${escapeHTML(c.name||c.id)}</option>`).join('');
   if (cur) sel.value = cur;
 }
-
-window.saAddGlobalImg = saAddGlobalImg;
-window.saDelGlobalImg = saDelGlobalImg;
-window.saAddGlobalCat = saAddGlobalCat;
-window.saDelGlobalCat = saDelGlobalCat;
-window.saSaveGlobalAds = saSaveGlobalAds;
-window.saSaveSiteProfile = saSaveSiteProfile;
 
 async function saAddGlobalImg() {
   const title = document.getElementById('sa-gadd-title')?.value.trim();
@@ -948,8 +938,8 @@ async function generateClientSiteHTML(clientId) {
 // SHARE MODAL
 function saShowShareModal(clientId) {
   const c    = saClients.find(x => x.id === clientId); if(!c) return;
-  const base       = getBase();
-  const publicBase = getPublicBase();
+  const base       = getDefaultBase();       // https://moonlightx.qd.je/admin
+  const publicBase = getDefaultPublicBase(); // https://moonlightx.qd.je
   const adminUrl   = `${base}/#/admin/${c.username}`;
   const siteUrl    = `${publicBase}/#/${c.username}`;
 
@@ -961,7 +951,7 @@ function saShowShareModal(clientId) {
   document.getElementById('sm-deploy-github').dataset.clientId  = clientId;
   document.getElementById('sm-deploy-status').style.display     = 'none';
   const pathHint = document.getElementById('sm-path-hint');
-  if (pathHint) pathHint.textContent = `clients/${c?.username || clientId}/index.html`;
+  if (pathHint) pathHint.textContent = `clients/${c.username}/index.html`;
 
   // Show deployed URL if already deployed
   const depSection = document.getElementById('sm-deployed-section');
@@ -1234,8 +1224,8 @@ document.getElementById('sa-cm-save').addEventListener('click', async () => {
     totalVisits:    existing ? (existing.totalVisits   || 0) : 0,
     todayVisits:    existing ? (existing.todayVisits   || 0) : 0,
     totalViews:     existing ? (existing.totalViews    || 0) : 0,
-    adminUrl:       base + '/#/admin/' + username,
-    siteUrl:        getPublicBase()+'/#/'+username,
+    adminUrl:       getDefaultBase() + '/#/admin/' + username,
+    siteUrl:        getDefaultPublicBase() + '/#/' + username,
   };
 
   const btn = document.getElementById('sa-cm-save');
@@ -1500,12 +1490,18 @@ async function deployToGitHub(clientId) {
 
 // SETTINGS
 function saLoadSettings() {
-  const base       = getBase();       // https://moonlightx.qd.je/admin
-  const publicBase = getPublicBase(); // https://moonlightx.qd.je
-  document.getElementById('sa-base-url').value = base;
-  if (document.getElementById('sa-public-url')) {
-    document.getElementById('sa-public-url').value = publicBase;
-  }
+  const base       = getDefaultBase();       // https://moonlightx.qd.je/admin
+  const publicBase = getDefaultPublicBase(); // https://moonlightx.qd.je
+
+  // Auto-save correct values to localStorage (override any stale github.io values)
+  localStorage.setItem('mnx_base_url',    base);
+  localStorage.setItem('mnx_public_url',  publicBase);
+
+  const baseEl   = document.getElementById('sa-base-url');
+  const publicEl = document.getElementById('sa-public-url');
+  if (baseEl)   { baseEl.value   = base;       baseEl.readOnly   = true; baseEl.style.opacity   = '0.7'; baseEl.style.cursor = 'default'; }
+  if (publicEl) { publicEl.value = publicBase; publicEl.readOnly = true; publicEl.style.opacity = '0.7'; publicEl.style.cursor = 'default'; }
+
   document.getElementById('sa-url-preview').textContent  = base + '/#/admin/username';
   document.getElementById('sa-site-preview').textContent = publicBase + '/#/username';
 
@@ -1514,7 +1510,7 @@ function saLoadSettings() {
   const ghR = document.getElementById('sa-gh-repo');
   const ghB = document.getElementById('sa-gh-branch');
   if (ghT) ghT.value = ghGetToken();
-  if (ghR) ghR.value = ghGetRepo();
+  if (ghR) ghR.value = ghGetRepo()  || 'pikavika77/moonlightx';
   if (ghB) ghB.value = ghGetBranch() || 'main';
 
   checkPublicUrlWarning();
