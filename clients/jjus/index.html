@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Opbolte — Premium 18+ Gallery</title>
+  <meta name="description" content="Opbolte – premium curated 18+ adult gallery. Fast, mobile-first platform with HD photography. Adults 18+ only.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#050505">
+  <link rel="stylesheet" href="../../app.css">
+
+  <!-- POPUNDER placeholder -->
+  <div id="mlx-popunder-slot"></div>
+
+  <!-- STEP 1: Globals synchronously set BEFORE app.js loads -->
+  <script>
+    window.__mlxImgPath    = 'clients/cl_jjus_1788353459158/images';
+    window.__mlxCatPath    = 'clients/cl_jjus_1788353459158/categories';
+    window.__mlxClientId   = "cl_jjus_1788353459158";
+    window.__mlxClientName = "Opbolte";
+    window.__mlxProfile = {
+      bio:       "",
+      avatar:    "",
+      instagram: "",
+      telegram:  "",
+      socialLinks: { instagram: "", telegram: "" }
+    };
+    window.__mlxAds = {
+      popunder:  "",
+      banner728: "",
+      banner320: "",
+      box300:    "",
+      smart:     ""
+    };
+    document.title = window.__mlxClientName + ' — Premium 18+ Gallery';
+  </script>
+
+  <!-- STEP 2: Firebase async — live profile + visit tracking -->
+  <script type="module">
+    import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+    import { getDatabase, ref, get, update }   from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
+
+    const FB = {
+      apiKey:            "AIzaSyACW8aFQmlaoaxNtE55m8Pck6H8BRlfEbs",
+      authDomain:        "moon-night-x.firebaseapp.com",
+      databaseURL:       "https://moon-night-x-default-rtdb.firebaseio.com",
+      projectId:         "moon-night-x",
+      storageBucket:     "moon-night-x.firebasestorage.app",
+      messagingSenderId: "779934381788",
+      appId:             "1:779934381788:web:1426fa035171015634a619"
+    };
+
+    const fbApp = getApps().length ? getApp() : initializeApp(FB);
+    const db    = getDatabase(fbApp);
+
+    /* Live profile update from Firebase */
+    try {
+      const pSnap = await get(ref(db, 'clients/cl_jjus_1788353459158/info/profile'));
+      if (pSnap.exists()) {
+        const p = pSnap.val();
+        window.__mlxProfile = {
+          bio:       p.bio       || "",
+          avatar:    p.avatar    || "",
+          instagram: p.instagram || "",
+          telegram:  p.telegram  || "",
+          socialLinks: {
+            instagram: p.instagram || "",
+            telegram:  p.telegram  || ""
+          }
+        };
+      }
+    } catch(e) {}
+
+    /* ── Execute scripts injected via innerHTML ── */
+    function execScriptsIn(el) {
+      el.querySelectorAll('script').forEach(old => {
+        const s = document.createElement('script');
+        if (old.src) { s.src = old.src; s.async = true; }
+        else { s.textContent = old.textContent; }
+        old.parentNode.replaceChild(s, old);
+      });
+    }
+
+    /* ── Inject popunder ── */
+    function injectPopunder(code) {
+      if (!code) return;
+      const div = document.getElementById('mlx-popunder-slot');
+      if (div) { div.innerHTML = code; execScriptsIn(div); }
+    }
+
+    /* ── Inject banner/box ads into React ad slots ── */
+    function injectBannerAds(ads) {
+      if (!ads) return;
+      const SLOT_MAP = {
+        'adsterra-top-leaderboard':    window.__mlxAds.banner728 || '',
+        'adsterra-native-incontent':   window.__mlxAds.box300    || '',
+        'adsterra-sidebar-skyscraper': window.__mlxAds.smart     || '',
+        'adsterra-mobile-sticky':      window.__mlxAds.banner320 || '',
+        'adsterra-bottom-footer':      window.__mlxAds.banner728 || ''
+      };
+      const injected   = new Set();
+      const totalSlots = Object.values(SLOT_MAP).filter(Boolean).length;
+      if (totalSlots === 0) return;
+      const obs = new MutationObserver(() => {
+        Object.entries(SLOT_MAP).forEach(([sid, code]) => {
+          if (!code || injected.has(sid)) return;
+          const el = document.getElementById(sid);
+          if (el) { el.innerHTML = code; el.dataset.injected = 'true'; execScriptsIn(el); injected.add(sid); }
+        });
+        if (injected.size >= totalSlots) obs.disconnect();
+      });
+      obs.observe(document.body, { childList: true, subtree: true });
+      setTimeout(() => obs.disconnect(), 25000);
+    }
+
+    injectPopunder(window.__mlxAds.popunder);
+    injectBannerAds(window.__mlxAds);
+
+    /* ── Visit tracking ── */
+    try {
+      const today   = new Date().toISOString().slice(0, 10);
+      const infoRef = ref(db, 'clients/cl_jjus_1788353459158/info');
+      const snap    = await get(infoRef);
+      const cur     = snap.exists() ? snap.val() : {};
+      const upd     = { totalVisits: (cur.totalVisits || 0) + 1 };
+      if (cur.todayKey === today) { upd.todayVisits = (cur.todayVisits || 0) + 1; }
+      else { upd.todayVisits = 1; upd.todayKey = today; }
+      await update(infoRef, upd);
+      await update(ref(db, 'superAdmin/clients/cl_jjus_1788353459158'), upd).catch(() => {});
+    } catch(e) { console.warn('Visit track:', e.message); }
+
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="../../app.js"></script>
+</body>
+</html>
