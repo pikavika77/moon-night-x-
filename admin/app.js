@@ -1387,31 +1387,58 @@ async function deployToGitHub(clientId) {
   const branch = ghGetBranch();
 
   if (!token) throw new Error('GitHub Token nahi hai! Settings mein token daalo aur Save karo.');
-  if (fieldToken && !storedToken) localStorage.setItem('mnx_gh_token', fieldToken);
+
+  if (fieldToken) {
+    localStorage.setItem('mnx_gh_token', fieldToken);
+  }
+
   const c = saClients.find(x => x.id === clientId);
   if (!c) throw new Error('Client nahi mila!');
+
   // Generate HTML
   const html = await generateClientSiteHTML(clientId);
   const path = `clients/${c.username}/index.html`;
+  const apiBase = `https://api.github.com/repos/${repo}/contents/${path}`;
+
+  console.log('[GitHub Deploy] Starting deployment...');
+  console.log('[GitHub Deploy] API URL:', apiBase);
+  console.log('[GitHub Deploy] Branch:', branch);
+  console.log('[GitHub Deploy] File Path:', path);
 
   // Check if file already exists (to get SHA for update)
-  const apiBase = `https://api.github.com/repos/${repo}/contents/${path}`;
   let sha = null;
+  let shaStatus = 'UNKNOWN';
+  let shaResponseBody = null;
+
   try {
     const existing = await fetch(`${apiBase}?ref=${branch}`, {
       headers: {
-        'Authorization': `token ${token}`,
+        'Authorization': `Bearer ${token}`,
         'Accept': 'application/vnd.github.v3+json'
       }
     });
-    if (existing.ok) {
-      const data = await existing.json();
-      sha = data.sha;
-    }
-  } catch(e) {}
+    shaStatus = existing.status;
+    shaResponseBody = await existing.json().catch(() => null);
 
-  // Base64 encode the HTML
-  const content = btoa(unescape(encodeURIComponent(html)));
+    console.log('[GitHub Deploy] SHA Request Status:', shaStatus);
+    console.log('[GitHub Deploy] SHA Response:', shaResponseBody);
+
+    if (existing.ok && shaResponseBody?.sha) {
+      sha = shaResponseBody.sha;
+    }
+  } catch(e) {
+    console.warn('[GitHub Deploy] SHA fetch failed, continuing deployment without SHA:', e);
+  }
+
+  // UTF-8 Safe Base64 encoding
+  const encoder = new TextEncoder();
+  const bytes = encoder.encode(html);
+  let binary = '';
+  const chunkLength = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkLength) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkLength));
+  }
+  const content = btoa(binary);
 
   // Push to GitHub
   const body = {
@@ -1419,33 +1446,51 @@ async function deployToGitHub(clientId) {
     content,
     branch
   };
-  if (sha) body.sha = sha; // needed for update
+  if (sha) body.sha = sha;
 
   const res = await fetch(apiBase, {
     method: 'PUT',
     headers: {
-      'Authorization': `token ${token}`,
+      'Authorization': `Bearer ${token}`,
       'Accept': 'application/vnd.github.v3+json',
       'Content-Type': 'application/json'
     },
     body: JSON.stringify(body)
   });
 
+  const deployStatus = res.status;
+  const deployResponseBody = await res.json().catch(() => ({}));
+
+  console.log('[GitHub Deploy] Deploy Request Status:', deployStatus);
+  console.log('[GitHub Deploy] Deploy Response Body:', deployResponseBody);
+
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    let msg = err.message || `GitHub API error: ${res.status}`;
-    if (res.status === 404) msg = 'Not Found — Token mein "repo" permission chahiye. GitHub → Settings → Developer settings → Tokens → token edit karo → "repo" checkbox tick karo → Save.';
-    if (res.status === 401) msg = 'Unauthorized — Token galat hai ya expire ho gaya. Naya token banao.';
-    if (res.status === 422) msg = 'SHA mismatch — File manually edit hui hai. Dobara try karo.';
+    const ghMessage = deployResponseBody?.message || 'No message provided';
+    let msg = `GitHub Error ${deployStatus}: ${ghMessage}`;
+
+    if (deployStatus === 401) {
+      msg = `GitHub 401 — Bad credentials (${ghMessage})`;
+    } else if (deployStatus === 403) {
+      msg = `GitHub 403 — Resource not accessible by personal access token (${ghMessage})`;
+    } else if (deployStatus === 404) {
+      msg = `GitHub 404 — Repository/File not found (${ghMessage})`;
+    } else if (deployStatus === 422) {
+      msg = `GitHub 422 — Invalid request or branch/path issue (${ghMessage})`;
+    }
+
     throw new Error(msg);
   }
 
-  // Save deployed URL to Firebase
   const deployedUrl = `https://moonlightx.qd.je/clients/${c.username}/`;
+  console.log('[GitHub Deploy] Final Live URL:', deployedUrl);
+
+  // Save deployed URL to Firebase
   try {
     await update(ref(db, `superAdmin/clients/${clientId}`), { deployedUrl, deployedAt: new Date().toISOString() });
     await update(ref(db, `clients/${clientId}/info`), { deployedUrl, deployedAt: new Date().toISOString() });
-  } catch(e) {}
+  } catch(e) {
+    console.warn('[GitHub Deploy] Failed to update deployedUrl in Firebase:', e);
+  }
 
   return deployedUrl;
 }
