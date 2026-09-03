@@ -1029,8 +1029,8 @@ document.getElementById('sm-deploy-github').addEventListener('click', async () =
   } catch(e) {
     status.style.background = '#2d0a0a';
     status.style.color      = 'var(--red)';
-    status.textContent      = '❌ ' + e.message;
-    toast('❌ ' + e.message, 'err');
+    status.innerHTML        = '❌ ' + e.message.replace(/\n/g, '<br>');
+    toast('❌ ' + e.message.split('\n')[0], 'err');
   }
 
   btn.textContent = '🚀 Deploy to GitHub';
@@ -1374,9 +1374,9 @@ document.getElementById('sa-btn-earn').addEventListener('click', async () => {
 
 // ── GITHUB DEPLOY ─────────────────────────────────────────────────────
 
-function ghGetToken()  { return localStorage.getItem('mnx_gh_token') || ''; }
-function ghGetRepo()   { return 'pikavika77/moonlightx'; }
-function ghGetBranch() { return 'main'; }
+function ghGetToken()  { return (document.getElementById('sa-gh-token')?.value || '').trim() || localStorage.getItem('mnx_gh_token') || ''; }
+function ghGetRepo()   { return (document.getElementById('sa-gh-repo')?.value || '').trim() || localStorage.getItem('mnx_gh_repo') || 'pikavika77/moonlightx'; }
+function ghGetBranch() { return (document.getElementById('sa-gh-branch')?.value || '').trim() || localStorage.getItem('mnx_gh_branch') || 'main'; }
 
 async function deployToGitHub(clientId) {
   // Token: field se pehle, phir localStorage se
@@ -1469,13 +1469,13 @@ async function deployToGitHub(clientId) {
     let msg = `GitHub Error ${deployStatus}: ${ghMessage}`;
 
     if (deployStatus === 401) {
-      msg = `GitHub 401 — Bad credentials (${ghMessage})`;
+      msg = `GitHub 401 — Invalid/Bad token (${ghMessage}). Token exp/invalid hai! Settings mein jaake new token daalo.`;
     } else if (deployStatus === 403) {
-      msg = `GitHub 403 — Resource not accessible by personal access token (${ghMessage})`;
+      msg = `GitHub 403 — Token permission issue (${ghMessage}). Fine-grained token permissions check karo (Contents: Read and write).`;
     } else if (deployStatus === 404) {
-      msg = `GitHub 404 — Repository/File not found (${ghMessage})`;
+      msg = `GitHub 404 — Repo or file not found (${ghMessage}). Possible reasons:\n1. Repo name ("${repo}") ya Branch ("${branch}") galat hai.\n2. GitHub token mein Repo/Contents write permission nahi hai (so GitHub hides private repo with 404).\n3. Settings mein Repo ("pikavika77/moonlightx"), Branch ("main") aur Token check karke Save karo.`;
     } else if (deployStatus === 422) {
-      msg = `GitHub 422 — Invalid request or branch/path issue (${ghMessage})`;
+      msg = `GitHub 422 — Invalid request (${ghMessage}). Check if branch "${branch}" exists in repository.`;
     }
 
     throw new Error(msg);
@@ -1518,6 +1518,7 @@ function saLoadSettings() {
   const ghB = document.getElementById('sa-gh-branch');
   const savedTok = localStorage.getItem('mnx_gh_token') || '';
   if (ghT) ghT.value = savedTok;
+  if (ghR) ghR.value = ghGetRepo();
   if (ghB) ghB.value = ghGetBranch();
 
   checkPublicUrlWarning();
@@ -1549,8 +1550,8 @@ document.getElementById('sa-save-base').addEventListener('click', () => {
 // GITHUB SETTINGS SAVE
 document.getElementById('sa-save-gh')?.addEventListener('click', () => {
   const token  = (document.getElementById('sa-gh-token')?.value || '').trim();
-  const repo   = ghGetRepo();
-  const branch = ghGetBranch();
+  const repo   = (document.getElementById('sa-gh-repo')?.value || '').trim() || 'pikavika77/moonlightx';
+  const branch = (document.getElementById('sa-gh-branch')?.value || '').trim() || 'main';
   const status = document.getElementById('sa-gh-status');
 
   if (!token) {
