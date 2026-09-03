@@ -755,7 +755,7 @@ async function generateClientSiteHTML(clientId) {
 
   const esc = v => JSON.stringify(v || '');
 
-  // app.js aur app.css repo root se load hogi (../../app.css = clients/riya/ se 2 level upar)
+  // Generated client site — globals set synchronously BEFORE app.js loads
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -770,6 +770,30 @@ async function generateClientSiteHTML(clientId) {
   <!-- POPUNDER placeholder -->
   <div id="mlx-popunder-slot"></div>
 
+  <!-- STEP 1: Globals synchronously set BEFORE app.js loads -->
+  <script>
+    window.__mlxImgPath    = 'clients/${id}/images';
+    window.__mlxCatPath    = 'clients/${id}/categories';
+    window.__mlxClientId   = ${esc(id)};
+    window.__mlxClientName = ${esc(name)};
+    window.__mlxProfile = {
+      bio:       ${esc(bio)},
+      avatar:    ${esc(avatar)},
+      instagram: ${esc(instagram)},
+      telegram:  ${esc(telegram)},
+      socialLinks: { instagram: ${esc(instagram)}, telegram: ${esc(telegram)} }
+    };
+    window.__mlxAds = {
+      popunder:  ${esc(adPopunder)},
+      banner728: ${esc(adBanner728)},
+      banner320: ${esc(adBanner320)},
+      box300:    ${esc(adBox300)},
+      smart:     ${esc(adSmart)}
+    };
+    document.title = window.__mlxClientName + ' — Premium 18+ Gallery';
+  <\/script>
+
+  <!-- STEP 2: Firebase async — live profile + visit tracking -->
   <script type="module">
     import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
     import { getDatabase, ref, get, update }   from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
@@ -786,21 +810,6 @@ async function generateClientSiteHTML(clientId) {
 
     const fbApp = getApps().length ? getApp() : initializeApp(FB);
     const db    = getDatabase(fbApp);
-
-    /* ── Client data hardcoded — no hash routing needed ── */
-    window.__mlxImgPath    = 'clients/${id}/images';
-    window.__mlxCatPath    = 'clients/${id}/categories';
-    window.__mlxClientId   = ${esc(id)};
-    window.__mlxClientName = ${esc(name)};
-
-    /* ── Profile: pehle hardcoded, phir Firebase se live update ── */
-    window.__mlxProfile = {
-      bio:       ${esc(bio)},
-      avatar:    ${esc(avatar)},
-      instagram: ${esc(instagram)},
-      telegram:  ${esc(telegram)},
-      socialLinks: { instagram: ${esc(instagram)}, telegram: ${esc(telegram)} }
-    };
 
     /* Live profile update from Firebase */
     try {
@@ -819,16 +828,6 @@ async function generateClientSiteHTML(clientId) {
         };
       }
     } catch(e) {}
-
-    window.__mlxAds = {
-      popunder:  ${esc(adPopunder)},
-      banner728: ${esc(adBanner728)},
-      banner320: ${esc(adBanner320)},
-      box300:    ${esc(adBox300)},
-      smart:     ${esc(adSmart)}
-    };
-
-    document.title = window.__mlxClientName + ' — Premium 18+ Gallery';
 
     /* ── Execute scripts injected via innerHTML ── */
     function execScriptsIn(el) {
@@ -851,11 +850,11 @@ async function generateClientSiteHTML(clientId) {
     function injectBannerAds(ads) {
       if (!ads) return;
       const SLOT_MAP = {
-        'adsterra-top-leaderboard':    ads.banner728 || '',
-        'adsterra-native-incontent':   ads.box300    || '',
-        'adsterra-sidebar-skyscraper': ads.smart     || '',
-        'adsterra-mobile-sticky':      ads.banner320 || '',
-        'adsterra-bottom-footer':      ads.banner728 || ''
+        'adsterra-top-leaderboard':    window.__mlxAds.banner728 || '',
+        'adsterra-native-incontent':   window.__mlxAds.box300    || '',
+        'adsterra-sidebar-skyscraper': window.__mlxAds.smart     || '',
+        'adsterra-mobile-sticky':      window.__mlxAds.banner320 || '',
+        'adsterra-bottom-footer':      window.__mlxAds.banner728 || ''
       };
       const injected   = new Set();
       const totalSlots = Object.values(SLOT_MAP).filter(Boolean).length;
@@ -1432,7 +1431,11 @@ async function deployToGitHub(clientId) {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || `GitHub API error: ${res.status}`);
+    let msg = err.message || `GitHub API error: ${res.status}`;
+    if (res.status === 404) msg = 'Not Found — Token mein "repo" permission chahiye. GitHub → Settings → Developer settings → Tokens → token edit karo → "repo" checkbox tick karo → Save.';
+    if (res.status === 401) msg = 'Unauthorized — Token galat hai ya expire ho gaya. Naya token banao.';
+    if (res.status === 422) msg = 'SHA mismatch — File manually edit hui hai. Dobara try karo.';
+    throw new Error(msg);
   }
 
   // Save deployed URL to Firebase
