@@ -117,59 +117,25 @@ function navigate(path) {
 }
 
 function getDefaultBase() {
-  // moonlightx.qd.je custom domain pe hamesha /admin hoga
-  const origin = window.location.origin;
-  const path   = (window.location.pathname || '').replace(/\/index\.(html?|php)$/i,'').replace(/\/+$/,'');
-  // Agar custom domain hai (not github.io) → origin + /admin
-  if (!origin.includes('github.io')) {
-    return origin + '/admin';
-  }
-  // github.io fallback
-  return (origin + path).replace(/\/+$/,'');
+  // Always return custom domain + /admin
+  return 'https://moonlightx.qd.je/admin';
 }
 
 function getDefaultPublicBase() {
-  // Real site base — always custom domain root
-  const origin = window.location.origin;
-  const path   = (window.location.pathname || '').replace(/\/index\.(html?|php)$/i,'').replace(/\/+$/,'');
-  if (!origin.includes('github.io')) {
-    return origin; // https://moonlightx.qd.je
-  }
-  // github.io fallback: strip /admin
-  return (origin + path.replace(/\/admin$/i,'')).replace(/\/+$/,'');
+  // Always return custom domain root
+  return 'https://moonlightx.qd.je';
 }
 
 function getBase() {
-  const defaultBase = getDefaultBase(); // e.g. https://moonlightx.qd.je/admin
-  const stored = localStorage.getItem('mnx_base_url');
-  if (stored) {
-    const clean = stored.trim().replace(/\/index\.(html?|php)$/i, '').replace(/\/+$/, '');
-    // Clear stale value if it's root domain but we're now at /admin/
-    if (clean === window.location.origin && defaultBase !== window.location.origin) {
-      localStorage.removeItem('mnx_base_url');
-      localStorage.setItem('mnx_base_url', defaultBase);
-      return defaultBase;
-    }
-    return clean;
-  }
-  localStorage.setItem('mnx_base_url', defaultBase);
-  return defaultBase;
+  return 'https://moonlightx.qd.je/admin';
 }
 
 function getPublicBase() {
-  const stored = localStorage.getItem('mnx_public_url');
-  if (stored && stored.trim()) {
-    return stored.trim().replace(/\/+$/, '');
-  }
-  // Auto-detect: root domain (strip /admin from current path)
-  return getDefaultPublicBase();
+  return 'https://moonlightx.qd.je';
 }
 
 function getAppFilesBase() {
-  const stored = localStorage.getItem('mnx_app_files_url');
-  if (stored && stored.trim()) return stored.trim().replace(/\/+$/, '');
-  // Fallback to public base if set
-  return getPublicBase();
+  return 'https://moonlightx.qd.je';
 }
 
 function checkPublicUrlWarning() {
@@ -177,11 +143,9 @@ function checkPublicUrlWarning() {
   if (banner) banner.style.display = 'none'; // auto-detect always works
 }
 
-function getClientSiteUrl(c, base) {
+function getClientSiteUrl(c) {
   if (!c) return '';
-  // Always use canonical public base — never use stale stored siteUrl
-  const publicBase = getDefaultPublicBase(); // https://moonlightx.qd.je
-  return `${publicBase}/#/${c.username}`;
+  return `https://moonlightx.qd.je/#/${c.username}`;
 }
 
 // ── AUTH STATE & ROUTE HANDLING ────────────────────────────────────────
@@ -708,10 +672,9 @@ function saUpdateDash() {
         </div>`).join('')
     : '<div style="color:var(--mu);font-size:12px;margin:auto">No clients yet</div>';
 
-  const base = getBase();
   document.getElementById('sa-dash-clients').innerHTML = saClients.map(c => {
-    const adminUrl = `${base}/#/admin/${c.username}`;
-    const siteUrl  = getClientSiteUrl(c, base);
+    const adminUrl = `https://moonlightx.qd.je/admin/#/admin/${c.username}`;
+    const siteUrl  = `https://moonlightx.qd.je/#/${c.username}`;
     return `
     <tr>
       <td style="font-weight:700">${escapeHTML(c.name||'—')}</td>
@@ -735,12 +698,11 @@ function saUpdateDash() {
 function saRenderClients() {
   const q    = (document.getElementById('sa-q-client')?.value||'').toLowerCase();
   const list = saClients.filter(c => !q || (c.name||'').toLowerCase().includes(q) || (c.username||'').toLowerCase().includes(q));
-  const base = getBase();
 
   document.getElementById('sa-clients-foot').textContent = `${list.length} of ${saClients.length} clients`;
   document.getElementById('sa-clients-tbody').innerHTML = list.length ? list.map(c => {
-    const adminUrl = `${base}/#/admin/${c.username}`;
-    const siteUrl  = getClientSiteUrl(c, base);
+    const adminUrl = `https://moonlightx.qd.je/admin/#/admin/${c.username}`;
+    const siteUrl  = `https://moonlightx.qd.je/#/${c.username}`;
     return `<tr>
       <td><div style="font-weight:700">${escapeHTML(c.name||'—')}</div><div style="font-size:10px;color:var(--mu);font-family:monospace">${escapeHTML(c.id)}</div></td>
       <td>
@@ -938,10 +900,8 @@ async function generateClientSiteHTML(clientId) {
 // SHARE MODAL
 function saShowShareModal(clientId) {
   const c    = saClients.find(x => x.id === clientId); if(!c) return;
-  const base       = getDefaultBase();       // https://moonlightx.qd.je/admin
-  const publicBase = getDefaultPublicBase(); // https://moonlightx.qd.je
-  const adminUrl   = `${base}/#/admin/${c.username}`;
-  const siteUrl    = `${publicBase}/#/${c.username}`;
+  const adminUrl   = `https://moonlightx.qd.je/admin/#/admin/${c.username}`;
+  const siteUrl    = `https://moonlightx.qd.je/#/${c.username}`;
 
   document.getElementById('sm-name').textContent       = c.name;
   document.getElementById('sm-admin-url').textContent  = adminUrl;
@@ -1132,9 +1092,8 @@ document.getElementById('sa-cm-pct').addEventListener('input', () => {
 document.getElementById('sa-cm-username').addEventListener('input', () => {
   let u = document.getElementById('sa-cm-username').value.toLowerCase().replace(/[^a-z0-9-]/g,'');
   document.getElementById('sa-cm-username').value = u;
-  const base = getBase();
   document.getElementById('sa-username-preview').innerHTML =
-    u ? `Admin: <span style="color:var(--grn)">${base}/#/admin/${u}</span> &nbsp;|&nbsp; Site: <span style="color:var(--blu)">${base}/#/${u}</span>`
+    u ? `Admin: <span style="color:var(--grn)">https://moonlightx.qd.je/admin/#/admin/${u}</span> &nbsp;|&nbsp; Site: <span style="color:var(--blu)">https://moonlightx.qd.je/#/${u}</span>`
       : 'Preview: —';
 });
 
@@ -1224,8 +1183,8 @@ document.getElementById('sa-cm-save').addEventListener('click', async () => {
     totalVisits:    existing ? (existing.totalVisits   || 0) : 0,
     todayVisits:    existing ? (existing.todayVisits   || 0) : 0,
     totalViews:     existing ? (existing.totalViews    || 0) : 0,
-    adminUrl:       getDefaultBase() + '/#/admin/' + username,
-    siteUrl:        getDefaultPublicBase() + '/#/' + username,
+    adminUrl:       'https://moonlightx.qd.je/admin/#/admin/' + username,
+    siteUrl:        'https://moonlightx.qd.je/#/' + username,
   };
 
   const btn = document.getElementById('sa-cm-save');
@@ -1416,17 +1375,16 @@ document.getElementById('sa-btn-earn').addEventListener('click', async () => {
 
 // ── GITHUB DEPLOY ─────────────────────────────────────────────────────
 
-function ghGetToken()  { return localStorage.getItem('mnx_gh_token')  || ''; }
-function ghGetRepo()   { return localStorage.getItem('mnx_gh_repo')   || 'pikavika77/moonlightx'; }
-function ghGetBranch() { return localStorage.getItem('mnx_gh_branch') || 'main'; }
+function ghGetToken()  { return localStorage.getItem('mnx_gh_token') || ''; }
+function ghGetRepo()   { return 'pikavika77/moonlightx'; }
+function ghGetBranch() { return 'main'; }
 
 async function deployToGitHub(clientId) {
-  const token  = ghGetToken();
-  const repo   = ghGetRepo();
-  const branch = ghGetBranch();
+  const token  = localStorage.getItem('mnx_gh_token') || '';
+  const repo   = 'pikavika77/moonlightx';
+  const branch = 'main';
 
   if (!token) throw new Error('GitHub Token nahi hai! Settings mein pehle token daalo.');
-  if (!repo)  throw new Error('GitHub Repo nahi hai! Settings mein repo daalo (e.g. pikavika77/moonlightx).');
 
   const c = saClients.find(x => x.id === clientId);
   if (!c) throw new Error('Client nahi mila!');
@@ -1478,8 +1436,7 @@ async function deployToGitHub(clientId) {
   }
 
   // Save deployed URL to Firebase
-  const publicBase = getPublicBase();
-  const deployedUrl = `${publicBase}/clients/${c.username}/`;
+  const deployedUrl = `https://moonlightx.qd.je/clients/${c.username}/`;
   try {
     await update(ref(db, `superAdmin/clients/${clientId}`), { deployedUrl, deployedAt: new Date().toISOString() });
     await update(ref(db, `clients/${clientId}/info`), { deployedUrl, deployedAt: new Date().toISOString() });
@@ -1490,17 +1447,17 @@ async function deployToGitHub(clientId) {
 
 // SETTINGS
 function saLoadSettings() {
-  const base       = getDefaultBase();       // https://moonlightx.qd.je/admin
-  const publicBase = getDefaultPublicBase(); // https://moonlightx.qd.je
+  const base       = 'https://moonlightx.qd.je/admin';
+  const publicBase = 'https://moonlightx.qd.je';
 
-  // Auto-save correct values to localStorage (override any stale github.io values)
+  // Auto-save correct values to localStorage
   localStorage.setItem('mnx_base_url',    base);
   localStorage.setItem('mnx_public_url',  publicBase);
 
   const baseEl   = document.getElementById('sa-base-url');
   const publicEl = document.getElementById('sa-public-url');
-  if (baseEl)   { baseEl.value   = base;       baseEl.readOnly   = true; baseEl.style.opacity   = '0.7'; baseEl.style.cursor = 'default'; }
-  if (publicEl) { publicEl.value = publicBase; publicEl.readOnly = true; publicEl.style.opacity = '0.7'; publicEl.style.cursor = 'default'; }
+  if (baseEl)   { baseEl.value = base;       baseEl.readOnly = false; baseEl.style.opacity = '1'; baseEl.style.cursor = 'text'; }
+  if (publicEl) { publicEl.value = publicBase; publicEl.readOnly = false; publicEl.style.opacity = '1'; publicEl.style.cursor = 'text'; }
 
   document.getElementById('sa-url-preview').textContent  = base + '/#/admin/username';
   document.getElementById('sa-site-preview').textContent = publicBase + '/#/username';
@@ -1510,8 +1467,8 @@ function saLoadSettings() {
   const ghR = document.getElementById('sa-gh-repo');
   const ghB = document.getElementById('sa-gh-branch');
   if (ghT) ghT.value = ghGetToken();
-  if (ghR) ghR.value = ghGetRepo()  || 'pikavika77/moonlightx';
-  if (ghB) ghB.value = ghGetBranch() || 'main';
+  if (ghR) ghR.value = ghGetRepo();
+  if (ghB) ghB.value = ghGetBranch();
 
   checkPublicUrlWarning();
 }
