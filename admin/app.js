@@ -1379,15 +1379,17 @@ function ghGetRepo()   { return 'pikavika77/moonlightx'; }
 function ghGetBranch() { return 'main'; }
 
 async function deployToGitHub(clientId) {
-  const token  = localStorage.getItem('mnx_gh_token') || '';
-  const repo   = 'pikavika77/moonlightx';
-  const branch = 'main';
+  // Token: field se pehle, phir localStorage se
+  const fieldToken  = (document.getElementById('sa-gh-token')?.value || '').trim();
+  const storedToken = localStorage.getItem('mnx_gh_token') || '';
+  const token  = fieldToken || storedToken;
+  const repo   = ghGetRepo();
+  const branch = ghGetBranch();
 
-  if (!token) throw new Error('GitHub Token nahi hai! Settings mein pehle token daalo.');
-
+  if (!token) throw new Error('GitHub Token nahi hai! Settings mein token daalo aur Save karo.');
+  if (fieldToken && !storedToken) localStorage.setItem('mnx_gh_token', fieldToken);
   const c = saClients.find(x => x.id === clientId);
   if (!c) throw new Error('Client nahi mila!');
-
   // Generate HTML
   const html = await generateClientSiteHTML(clientId);
   const path = `clients/${c.username}/index.html`;
@@ -1469,8 +1471,8 @@ function saLoadSettings() {
   const ghT = document.getElementById('sa-gh-token');
   const ghR = document.getElementById('sa-gh-repo');
   const ghB = document.getElementById('sa-gh-branch');
-  if (ghT) ghT.value = ghGetToken();
-  if (ghR) ghR.value = ghGetRepo();
+  const savedTok = localStorage.getItem('mnx_gh_token') || '';
+  if (ghT) ghT.value = savedTok;
   if (ghB) ghB.value = ghGetBranch();
 
   checkPublicUrlWarning();
@@ -1501,15 +1503,16 @@ document.getElementById('sa-save-base').addEventListener('click', () => {
 
 // GITHUB SETTINGS SAVE
 document.getElementById('sa-save-gh')?.addEventListener('click', () => {
-  const token  = document.getElementById('sa-gh-token')?.value.trim();
-  const repo   = document.getElementById('sa-gh-repo')?.value.trim();
-  const branch = document.getElementById('sa-gh-branch')?.value.trim() || 'main';
+  const token  = (document.getElementById('sa-gh-token')?.value || '').trim();
+  const repo   = ghGetRepo();
+  const branch = ghGetBranch();
   const status = document.getElementById('sa-gh-status');
 
-  if (!token || !repo) {
+  if (!token) {
     status.style.display = 'block';
     status.style.color   = 'var(--red)';
-    status.textContent   = '❌ Token aur Repo dono zaroori hain!';
+    status.textContent   = '❌ Token daalo pehle!';
+    setTimeout(() => { status.style.display = 'none'; }, 3000);
     return;
   }
 
@@ -1519,8 +1522,8 @@ document.getElementById('sa-save-gh')?.addEventListener('click', () => {
 
   status.style.display = 'block';
   status.style.color   = 'var(--grn)';
-  status.textContent   = `✅ Saved! Repo: ${repo} | Branch: ${branch}`;
-  toast('✅ GitHub settings save ho gaye!');
+  status.textContent   = `✅ Token saved! Deploy ab kaam karega.`;
+  toast('✅ GitHub token save ho gaya!');
   setTimeout(() => { status.style.display = 'none'; }, 4000);
 });
 
