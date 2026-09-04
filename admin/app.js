@@ -591,18 +591,16 @@ function saPopulateGlobalCatSelect() {
 }
 
 async function saAddGlobalImg() {
-  const title    = document.getElementById('sa-gadd-title')?.value.trim();
-  const thumb    = document.getElementById('sa-gadd-thumb')?.value.trim();
-  const hires    = document.getElementById('sa-gadd-hires')?.value.trim()||'';
-  const watchUrl = document.getElementById('sa-gadd-watch')?.value.trim()||'';
-  const downloadUrl = document.getElementById('sa-gadd-download')?.value.trim()||'';
-  const cat      = document.getElementById('sa-gadd-cat')?.value||'general';
-  const desc     = document.getElementById('sa-gadd-desc')?.value.trim()||'';
+  const title = document.getElementById('sa-gadd-title')?.value.trim();
+  const thumb = document.getElementById('sa-gadd-thumb')?.value.trim();
+  const hires = document.getElementById('sa-gadd-hires')?.value.trim()||'';
+  const cat   = document.getElementById('sa-gadd-cat')?.value||'general';
+  const desc  = document.getElementById('sa-gadd-desc')?.value.trim()||'';
   if (!title||!thumb) { toast('⚠️ Title aur Thumbnail URL zaroori hain!','warn'); return; }
   const id = 'img-' + Date.now();
   try {
-    await set(ref(db, `globalSite/images/${id}`), { id, title, thumb, thumbnail:thumb, hires:hires||thumb, url:thumb, watchUrl, downloadUrl, category:cat, description:desc, createdAt:new Date().toISOString() });
-    ['sa-gadd-title','sa-gadd-thumb','sa-gadd-hires','sa-gadd-watch','sa-gadd-download','sa-gadd-desc'].forEach(k => { const e=document.getElementById(k); if(e) e.value=''; });
+    await set(ref(db, `globalSite/images/${id}`), { id, title, thumb, thumbnail:thumb, hires:hires||thumb, url:thumb, category:cat, description:desc, createdAt:new Date().toISOString() });
+    ['sa-gadd-title','sa-gadd-thumb','sa-gadd-hires','sa-gadd-desc'].forEach(k => { const e=document.getElementById(k); if(e) e.value=''; });
     document.getElementById('sa-global-add-modal').style.display='none';
     toast('✅ Image add ho gayi!');
     saAddLog('add','Global site image added: '+title);
@@ -1764,7 +1762,7 @@ function clPopulateCatDropdowns() {
 }
 
 function clClearImgForm() {
-  ['cl-m-id','cl-m-slug','cl-m-title','cl-m-desc','cl-m-thumb','cl-m-hires','cl-m-watch','cl-m-download','cl-m-gallery','cl-m-model','cl-m-res','cl-m-size','cl-m-tags','cl-m-up'].forEach(id=>document.getElementById(id).value='');
+  ['cl-m-id','cl-m-slug','cl-m-title','cl-m-desc','cl-m-thumb','cl-m-hires','cl-m-gallery','cl-m-model','cl-m-res','cl-m-size','cl-m-tags','cl-m-up'].forEach(id=>document.getElementById(id).value='');
   ['cl-m-views','cl-m-likes'].forEach(id=>document.getElementById(id).value='0');
   ['cl-m-ft','cl-m-tr','cl-m-pp','cl-m-nw'].forEach(id=>document.getElementById(id).checked=false);
   document.getElementById('cl-m-aspect').value='portrait';
@@ -1796,8 +1794,6 @@ function clOpenEditImg(id) {
   document.getElementById('cl-m-aspect').value=img.aspectRatio||'portrait';
   document.getElementById('cl-m-thumb').value=img.thumbnailUrl||'';
   document.getElementById('cl-m-hires').value=img.highResUrl||'';
-  document.getElementById('cl-m-watch').value=img.watchUrl||'';
-  document.getElementById('cl-m-download').value=img.downloadUrl||'';
   document.getElementById('cl-m-gallery').value=(img.galleryImages||[]).join('\n');
   document.getElementById('cl-m-model').value=img.modelName||'';
   document.getElementById('cl-m-res').value=img.resolution||'';
@@ -1826,12 +1822,10 @@ document.getElementById('cl-im-save').addEventListener('click', async ()=>{
   const thumb=document.getElementById('cl-m-thumb').value.trim(), hires=document.getElementById('cl-m-hires').value.trim();
   const slug=document.getElementById('cl-m-slug').value.trim();
   if(!id||!title||!thumb||!hires||!slug){toast('❌ ID, Slug, Title, Thumb & HiRes required!','err');return;}
-  const watchUrl = document.getElementById('cl-m-watch').value.trim();
-  const downloadUrl = document.getElementById('cl-m-download').value.trim();
   const data={
     id,slug,title,description:document.getElementById('cl-m-desc').value.trim(),
     category:document.getElementById('cl-m-cat').value,aspectRatio:document.getElementById('cl-m-aspect').value,
-    thumbnailUrl:thumb,highResUrl:hires,watchUrl,downloadUrl,
+    thumbnailUrl:thumb,highResUrl:hires,
     galleryImages:document.getElementById('cl-m-gallery').value.trim().split('\n').map(s=>s.trim()).filter(Boolean),
     modelName:document.getElementById('cl-m-model').value.trim(),resolution:document.getElementById('cl-m-res').value.trim(),
     format:document.getElementById('cl-m-fmt').value,fileSize:document.getElementById('cl-m-size').value.trim(),
