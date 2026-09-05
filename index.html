@@ -16,28 +16,44 @@
   <!-- POPUNDER placeholder -->
   <div id="mlx-popunder-slot"></div>
 
-  <!-- STEP 1: Globals synchronously set BEFORE app.js loads -->
+  <!-- STEP 1: Synchronous Globals set BEFORE app.js loads -->
   <script>
-    window.__mlxImgPath    = 'images';
-    window.__mlxCatPath    = 'categories';
-    window.__mlxClientId   = 'global';
-    window.__mlxClientName = 'Moon Light X';
-    window.__mlxProfile = {
-      bio: '',
-      avatar: '',
-      instagram: '',
-      telegram: '',
-      socialLinks: { instagram: '', telegram: '' }
-    };
-    window.__mlxAds = {
-      popunder:  '',
-      banner728: '',
-      banner320: '',
-      box300:    '',
-      smart:     ''
-    };
-  </script>
+    (function() {
+      var hash = (window.location.hash || '').replace(/^#\/?/, '');
+      var parts = hash.split('/').filter(Boolean);
+      var username = (parts.length && parts[0] !== 'admin' && parts[0] !== 'super') ? parts[0] : null;
 
+      if (username) {
+        window.__mlxImgPath    = 'clients/' + username + '/images';
+        window.__mlxCatPath    = 'clients/' + username + '/categories';
+        window.__mlxClientId   = username;
+        window.__mlxClientName = username;
+      } else {
+        window.__mlxImgPath    = 'globalSite/images';
+        window.__mlxCatPath    = 'globalSite/categories';
+        window.__mlxClientId   = 'global';
+        window.__mlxClientName = 'Moon Light X';
+      }
+      window.__mlxProfile = {
+        bio: '',
+        avatar: '',
+        instagram: '',
+        telegram: '',
+        socialLinks: { instagram: '', telegram: '' }
+      };
+      window.__mlxAds = {
+        popunder:  '',
+        banner728: '',
+        banner320: '',
+        box300:    '',
+        smart:     ''
+      };
+    })();
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="./app.js"></script>
   <script type="module">
     import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
     import { getDatabase, ref, get, update }   from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
@@ -52,11 +68,9 @@
       appId:             "1:779934381788:web:1426fa035171015634a619"
     };
 
-    /* FIX 1: Firebase init ONCE — pehle har hashchange pe crash hota tha */
     const fbApp = getApps().length ? getApp() : initializeApp(FB);
     const db    = getDatabase(fbApp);
 
-    /* ── Parse username from hash ── */
     function getUsernameFromHash() {
       const hash  = (window.location.hash || '').replace(/^#\/?/, '');
       const parts = hash.split('/').filter(Boolean);
@@ -64,7 +78,6 @@
       return parts[0];
     }
 
-    /* ── Visit tracking ── */
     async function trackVisit(clientId) {
       if (!clientId || clientId === 'global') return;
       try {
@@ -80,7 +93,6 @@
       } catch(e) { console.warn('Visit track:', e.message); }
     }
 
-    /* ── Execute scripts injected via innerHTML ── */
     function execScriptsIn(el) {
       el.querySelectorAll('script').forEach(old => {
         const s = document.createElement('script');
@@ -90,49 +102,42 @@
       });
     }
 
-    /* ── Inject popunder ── */
-    function injectPopunder(code) {
-      if (!code) return;
-      const div = document.getElementById('mlx-popunder-slot');
-      if (div) { div.innerHTML = code; execScriptsIn(div); }
-    }
-
-    /* ── Inject banner/box ads into React ad slots ── */
-    function injectBannerAds(ads) {
+    function injectAds(ads) {
       if (!ads) return;
-      const SLOT_MAP = {
-        'adsterra-top-leaderboard':    ads.banner728 || '',
-        'adsterra-native-incontent':   ads.box300    || '',
-        'adsterra-sidebar-skyscraper': ads.smart     || '',
-        'adsterra-mobile-sticky':      ads.banner320 || '',
-        'adsterra-bottom-footer':      ads.banner728 || ''
+      const SLOTS = {
+        'mlx-popunder-slot':             ads.popunder  || '',
+        'adsterra-top-leaderboard':      ads.banner728 || '',
+        'adsterra-mobile-sticky':        ads.banner320 || '',
+        'adsterra-native-incontent':     ads.box300    || '',
+        'adsterra-sidebar-skyscraper':   ads.smart     || ''
       };
-      const injected  = new Set();
-      const totalSlots = Object.values(SLOT_MAP).filter(Boolean).length;
-      if (totalSlots === 0) return;
+      const done = new Set();
       const obs = new MutationObserver(() => {
-        Object.entries(SLOT_MAP).forEach(([id, code]) => {
-          if (!code || injected.has(id)) return;
+        Object.entries(SLOTS).forEach(([id, code]) => {
+          if (!code || done.has(id)) return;
           const el = document.getElementById(id);
-          if (el) { el.innerHTML = code; el.dataset.injected = 'true'; execScriptsIn(el); injected.add(id); }
+          if (el) {
+            el.innerHTML = code;
+            execScriptsIn(el);
+            done.add(id);
+          }
         });
-        if (injected.size >= totalSlots) obs.disconnect();
+        if (done.size === Object.keys(SLOTS).filter(k => SLOTS[k]).length)
+          obs.disconnect();
       });
       obs.observe(document.body, { childList: true, subtree: true });
-      setTimeout(() => obs.disconnect(), 25000);
+      setTimeout(() => obs.disconnect(), 30000);
     }
 
-    /* ── Main client resolver ── */
     async function resolveClient() {
       const username = getUsernameFromHash();
 
       if (!username) {
-        window.__mlxImgPath    = 'images';
-        window.__mlxCatPath    = 'categories';
+        window.__mlxImgPath    = 'globalSite/images';
+        window.__mlxCatPath    = 'globalSite/categories';
         window.__mlxClientId   = 'global';
         window.__mlxClientName = 'Moon Light X';
 
-        /* Load global ads and site profile */
         try {
           const [adsSnap, profSnap] = await Promise.all([
             get(ref(db, 'superAdmin/settings/globalAds')),
@@ -158,8 +163,7 @@
             window.__mlxClientName = prof.name;
             document.title = `${prof.name} — Premium 18+ Gallery`;
           }
-          injectPopunder(window.__mlxAds.popunder);
-          injectBannerAds(window.__mlxAds);
+          injectAds(window.__mlxAds);
         } catch(e) {
           console.warn('Global site data load error:', e);
           window.__mlxAds     = {};
@@ -171,14 +175,12 @@
       try {
         let client = null;
 
-        /* Find client by username */
         const snap = await get(ref(db, 'superAdmin/clients'));
         if (snap.exists()) {
           client = Object.values(snap.val()).filter(Boolean)
-                         .find(c => c.username === username) || null;
+                         .find(c => c.username === username || c.id === username) || null;
         }
 
-        /* Fallback: direct lookup */
         if (!client) {
           const ds = await get(ref(db, `clients/${username}/info`));
           if (ds.exists()) client = { ...ds.val(), id: ds.val().id || username };
@@ -193,7 +195,6 @@
           window.__mlxClientName = client.name || 'Moon Light X';
           if (client.name) document.title = `${client.name} — Premium 18+ Gallery`;
 
-          /* FIX 2: Profile fetch from correct path — pehle client.profile padhta tha jo kabhi save nahi hota */
           let p = {};
           try {
             const pSnap = await get(ref(db, `clients/${cid}/info/profile`));
@@ -201,31 +202,36 @@
           } catch(e) {}
 
           window.__mlxProfile = {
-            bio:       p.bio       || '',
-            avatar:    p.avatar    || '',
-            instagram: p.instagram || '',
-            telegram:  p.telegram  || '',
+            bio:       p.bio       || client.bio       || '',
+            avatar:    p.avatar    || client.avatar    || '',
+            instagram: p.instagram || client.instagram || '',
+            telegram:  p.telegram  || client.telegram  || '',
             socialLinks: {
-              instagram: p.instagram || '',
-              telegram:  p.telegram  || ''
+              instagram: p.instagram || client.instagram || '',
+              telegram:  p.telegram  || client.telegram  || ''
             }
           };
 
+          let clientAds = {};
+          try {
+            const adsSnap = await get(ref(db, `clients/${cid}/info/ads`));
+            if (adsSnap.exists()) clientAds = adsSnap.val();
+          } catch(e) {}
+
           window.__mlxAds = {
-            popunder:  client.adPopunder  || '',
-            banner728: client.adBanner728 || '',
-            banner320: client.adBanner320 || '',
-            box300:    client.adBox300    || '',
-            smart:     client.adSmart     || ''
+            popunder:  clientAds.popunder  || client.adPopunder  || (client.ads && client.ads.popunder)  || '',
+            banner728: clientAds.banner728 || client.adBanner728 || (client.ads && client.ads.banner728) || '',
+            banner320: clientAds.banner320 || client.adBanner320 || (client.ads && client.ads.banner320) || '',
+            box300:    clientAds.box300    || client.adBox300    || (client.ads && client.ads.box300)    || '',
+            smart:     clientAds.smart     || client.adSmart     || (client.ads && client.ads.smart)     || ''
           };
 
           trackVisit(cid);
-          injectPopunder(window.__mlxAds.popunder);
-          injectBannerAds(window.__mlxAds);
+          injectAds(window.__mlxAds);
 
         } else {
-          window.__mlxImgPath    = 'images';
-          window.__mlxCatPath    = 'categories';
+          window.__mlxImgPath    = 'globalSite/images';
+          window.__mlxCatPath    = 'globalSite/categories';
           window.__mlxClientId   = 'global';
           window.__mlxClientName = 'Moon Light X';
           window.__mlxProfile    = {};
@@ -233,8 +239,8 @@
         }
       } catch(e) {
         console.warn('Resolver error:', e);
-        window.__mlxImgPath    = 'images';
-        window.__mlxCatPath    = 'categories';
+        window.__mlxImgPath    = 'globalSite/images';
+        window.__mlxCatPath    = 'globalSite/categories';
         window.__mlxClientId   = 'global';
         window.__mlxClientName = 'Moon Light X';
         window.__mlxProfile    = {};
@@ -245,9 +251,5 @@
     window.addEventListener('hashchange', () => resolveClient().catch(console.warn));
     await resolveClient();
   </script>
-</head>
-<body>
-  <div id="root"></div>
-  <script src="./app.js"></script>
 </body>
 </html>
