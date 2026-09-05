@@ -117,12 +117,10 @@ function navigate(path) {
 }
 
 function getDefaultBase() {
-  // Always return custom domain + /admin
   return 'https://moonlightx.qd.je/admin';
 }
 
 function getDefaultPublicBase() {
-  // Always return custom domain root
   return 'https://moonlightx.qd.je';
 }
 
@@ -140,7 +138,7 @@ function getAppFilesBase() {
 
 function checkPublicUrlWarning() {
   const banner = document.getElementById('public-url-banner');
-  if (banner) banner.style.display = 'none'; // auto-detect always works
+  if (banner) banner.style.display = 'none';
 }
 
 function getClientSiteUrl(c) {
@@ -160,7 +158,6 @@ function resetGBtn() {
     const result = await getRedirectResult(auth);
     if (result?.user) {
       console.log('Redirect sign-in success:', result.user.email);
-      // Redirect flow completed - process the user
       await handleRoute(result.user);
     }
   } catch(e) {
@@ -476,8 +473,6 @@ function saRenderDashLog() {
 
 // DB
 function saInitDB() {
-  // Auto-load public site URL from Firebase settings
-  // Load saved URLs from Firebase
   get(ref(db, 'superAdmin/settings')).then(snap => {
     if (!snap.exists()) return;
     const settings = snap.val();
@@ -511,10 +506,9 @@ function saInitDB() {
 
 // ── GLOBAL SITE GALLERY & ADS ────────────────────────────────────────────
 let globalImages = [], globalSiteCats = [];
-let _globalSiteListening = false; // guard: prevents duplicate onValue listeners
+let _globalSiteListening = false;
 
 function saInitGlobalSite() {
-  // Only register Firebase realtime listeners once
   if (!_globalSiteListening) {
     _globalSiteListening = true;
     onValue(ref(db, 'globalSite/images'), snap => {
@@ -527,12 +521,10 @@ function saInitGlobalSite() {
       saPopulateGlobalCatSelect();
     });
   } else {
-    // Re-render with already-loaded data when switching between site-gallery/site-ads
     saRenderGlobalGallery();
     saRenderGlobalCats();
     saPopulateGlobalCatSelect();
   }
-  // Load ads
   get(ref(db, 'superAdmin/settings/globalAds')).then(snap => {
     if (!snap.exists()) return;
     const ads = snap.val();
@@ -541,7 +533,6 @@ function saInitGlobalSite() {
       if (el) el.value = ads[k] || '';
     });
   }).catch(() => {});
-  // Load site profile
   get(ref(db, 'superAdmin/settings/siteProfile')).then(snap => {
     if (!snap.exists()) return;
     const p = snap.val();
@@ -594,15 +585,15 @@ async function saAddGlobalImg() {
   const title    = document.getElementById('sa-gadd-title')?.value.trim();
   const thumb    = document.getElementById('sa-gadd-thumb')?.value.trim();
   const hires    = document.getElementById('sa-gadd-hires')?.value.trim()||'';
-  const watchUrl = document.getElementById('sa-gadd-watch')?.value.trim()||'';
-  const downloadUrl = document.getElementById('sa-gadd-download')?.value.trim()||'';
+  const watchUrl = (document.getElementById('sa-gadd-watch-url')?.value || document.getElementById('sa-gadd-watch')?.value || '').trim();
+  const downloadUrl = (document.getElementById('sa-gadd-download-url')?.value || document.getElementById('sa-gadd-download')?.value || '').trim();
   const cat      = document.getElementById('sa-gadd-cat')?.value||'general';
   const desc     = document.getElementById('sa-gadd-desc')?.value.trim()||'';
   if (!title||!thumb) { toast('⚠️ Title aur Thumbnail URL zaroori hain!','warn'); return; }
   const id = 'img-' + Date.now();
   try {
     await set(ref(db, `globalSite/images/${id}`), { id, title, thumb, thumbnail:thumb, hires:hires||thumb, url:thumb, watchUrl, downloadUrl, category:cat, description:desc, createdAt:new Date().toISOString() });
-    ['sa-gadd-title','sa-gadd-thumb','sa-gadd-hires','sa-gadd-watch','sa-gadd-download','sa-gadd-desc'].forEach(k => { const e=document.getElementById(k); if(e) e.value=''; });
+    ['sa-gadd-title','sa-gadd-thumb','sa-gadd-hires','sa-gadd-watch-url','sa-gadd-download-url','sa-gadd-desc'].forEach(k => { const e=document.getElementById(k); if(e) e.value=''; });
     document.getElementById('sa-global-add-modal').style.display='none';
     toast('✅ Image add ho gayi!');
     saAddLog('add','Global site image added: '+title);
@@ -742,6 +733,12 @@ async function generateClientSiteHTML(clientId) {
     if (snap.exists()) profile = snap.val();
   } catch(e) {}
 
+  let ads = {};
+  try {
+    const adsSnap = await get(ref(db, `clients/${clientId}/info/ads`));
+    if (adsSnap.exists()) ads = adsSnap.val();
+  } catch(e) {}
+
   const id        = c.id || clientId;
   const name      = c.name || 'Gallery';
   const bio       = profile.bio       || c.bio       || '';
@@ -749,15 +746,14 @@ async function generateClientSiteHTML(clientId) {
   const instagram = profile.instagram || c.instagram || '';
   const telegram  = profile.telegram  || c.telegram  || '';
 
-  const adPopunder  = c.adPopunder  || '';
-  const adBanner728 = c.adBanner728 || '';
-  const adBanner320 = c.adBanner320 || '';
-  const adBox300    = c.adBox300    || '';
-  const adSmart     = c.adSmart     || '';
+  const adPopunder  = ads.popunder  || c.adPopunder  || (c.ads && c.ads.popunder)  || '';
+  const adBanner728 = ads.banner728 || c.adBanner728 || (c.ads && c.ads.banner728) || '';
+  const adBanner320 = ads.banner320 || c.adBanner320 || (c.ads && c.ads.banner320) || '';
+  const adBox300    = ads.box300    || c.adBox300    || (c.ads && c.ads.box300)    || '';
+  const adSmart     = ads.smart     || c.adSmart     || (c.ads && c.ads.smart)     || '';
 
   const esc = v => JSON.stringify(v || '');
 
-  // Generated client site — globals set synchronously BEFORE app.js loads
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -813,7 +809,6 @@ async function generateClientSiteHTML(clientId) {
     const fbApp = getApps().length ? getApp() : initializeApp(FB);
     const db    = getDatabase(fbApp);
 
-    /* Live profile update from Firebase */
     try {
       const pSnap = await get(ref(db, 'clients/${id}/info/profile'));
       if (pSnap.exists()) {
@@ -831,7 +826,6 @@ async function generateClientSiteHTML(clientId) {
       }
     } catch(e) {}
 
-    /* ── Execute scripts injected via innerHTML ── */
     function execScriptsIn(el) {
       el.querySelectorAll('script').forEach(old => {
         const s = document.createElement('script');
@@ -841,42 +835,35 @@ async function generateClientSiteHTML(clientId) {
       });
     }
 
-    /* ── Inject popunder ── */
-    function injectPopunder(code) {
-      if (!code) return;
-      const div = document.getElementById('mlx-popunder-slot');
-      if (div) { div.innerHTML = code; execScriptsIn(div); }
-    }
-
-    /* ── Inject banner/box ads into React ad slots ── */
-    function injectBannerAds(ads) {
+    function injectAds(ads) {
       if (!ads) return;
-      const SLOT_MAP = {
-        'adsterra-top-leaderboard':    window.__mlxAds.banner728 || '',
-        'adsterra-native-incontent':   window.__mlxAds.box300    || '',
-        'adsterra-sidebar-skyscraper': window.__mlxAds.smart     || '',
-        'adsterra-mobile-sticky':      window.__mlxAds.banner320 || '',
-        'adsterra-bottom-footer':      window.__mlxAds.banner728 || ''
+      const SLOTS = {
+        'mlx-popunder-slot':             ads.popunder  || '',
+        'adsterra-top-leaderboard':      ads.banner728 || '',
+        'adsterra-mobile-sticky':        ads.banner320 || '',
+        'adsterra-native-incontent':     ads.box300    || '',
+        'adsterra-sidebar-skyscraper':   ads.smart     || ''
       };
-      const injected   = new Set();
-      const totalSlots = Object.values(SLOT_MAP).filter(Boolean).length;
-      if (totalSlots === 0) return;
+      const done = new Set();
       const obs = new MutationObserver(() => {
-        Object.entries(SLOT_MAP).forEach(([sid, code]) => {
-          if (!code || injected.has(sid)) return;
-          const el = document.getElementById(sid);
-          if (el) { el.innerHTML = code; el.dataset.injected = 'true'; execScriptsIn(el); injected.add(sid); }
+        Object.entries(SLOTS).forEach(([id, code]) => {
+          if (!code || done.has(id)) return;
+          const el = document.getElementById(id);
+          if (el) {
+            el.innerHTML = code;
+            execScriptsIn(el);
+            done.add(id);
+          }
         });
-        if (injected.size >= totalSlots) obs.disconnect();
+        if (done.size === Object.keys(SLOTS).filter(k => SLOTS[k]).length)
+          obs.disconnect();
       });
       obs.observe(document.body, { childList: true, subtree: true });
-      setTimeout(() => obs.disconnect(), 25000);
+      setTimeout(() => obs.disconnect(), 30000);
     }
 
-    injectPopunder(window.__mlxAds.popunder);
-    injectBannerAds(window.__mlxAds);
+    injectAds(window.__mlxAds);
 
-    /* ── Visit tracking ── */
     try {
       const today   = new Date().toISOString().slice(0, 10);
       const infoRef = ref(db, 'clients/${id}/info');
@@ -914,7 +901,6 @@ function saShowShareModal(clientId) {
   const pathHint = document.getElementById('sm-path-hint');
   if (pathHint) pathHint.textContent = `clients/${c.username}/index.html`;
 
-  // Show deployed URL if already deployed
   const depSection = document.getElementById('sm-deployed-section');
   const depUrl     = document.getElementById('sm-deployed-url');
   if (c.deployedUrl) {
@@ -943,7 +929,6 @@ function saShowShareModal(clientId) {
   };
   document.getElementById('sm-open-site').onclick  = () => window.open(siteUrl, '_blank');
 
-  // Public URL warning in share modal
   const smWarn = document.getElementById('sm-public-warn');
   if (smWarn) smWarn.style.display = getPublicBase() ? 'none' : 'flex';
 
@@ -1013,7 +998,6 @@ document.getElementById('sm-deploy-github').addEventListener('click', async () =
       <strong>Live URL:</strong> <a href="${deployedUrl}" target="_blank"
         style="color:#4ade80;word-break:break-all">${deployedUrl}</a><br>
       <span style="color:var(--mu);font-size:10px">GitHub Pages pe 1-2 min mein live hoga.</span>`;
-    // Show deployed section in modal
     const depSection = document.getElementById('sm-deployed-section');
     const depUrl     = document.getElementById('sm-deployed-url');
     if (depSection && depUrl) {
@@ -1120,11 +1104,14 @@ function saOpenEdit(id) {
   document.getElementById('sa-cm-username').value      = c.username||'';
   document.getElementById('sa-cm-adsterra').value      = c.adsterraSiteId||'';
   document.getElementById('sa-cm-notes').value         = c.notes||'';
-  document.getElementById('sa-cm-ad-popunder').value  = c.adPopunder  ||'';
-  document.getElementById('sa-cm-ad-banner728').value = c.adBanner728 ||'';
-  document.getElementById('sa-cm-ad-banner320').value = c.adBanner320 ||'';
-  document.getElementById('sa-cm-ad-box300').value    = c.adBox300    ||'';
-  document.getElementById('sa-cm-ad-smart').value     = c.adSmart     ||'';
+
+  const ads = c.ads || {};
+  document.getElementById('sa-cm-ad-popunder').value  = c.adPopunder  || ads.popunder  || '';
+  document.getElementById('sa-cm-ad-banner728').value = c.adBanner728 || ads.banner728 || '';
+  document.getElementById('sa-cm-ad-banner320').value = c.adBanner320 || ads.banner320 || '';
+  document.getElementById('sa-cm-ad-box300').value    = c.adBox300    || ads.box300    || '';
+  document.getElementById('sa-cm-ad-smart').value     = c.adSmart     || ads.smart     || '';
+
   document.getElementById('sa-cm-status').value        = c.status||'active';
   const pct = c.earningPercent||40;
   document.getElementById('sa-cm-pct').value           = pct;
@@ -1162,7 +1149,14 @@ document.getElementById('sa-cm-save').addEventListener('click', async () => {
 
   const id       = saEditId || ('cl_' + username + '_' + Date.now());
   const existing = saEditId ? saClients.find(c => c.id === id) : null;
-  const base     = getBase();
+
+  const adsObj = {
+    popunder:  document.getElementById('sa-cm-ad-popunder')?.value.trim()||'',
+    banner728: document.getElementById('sa-cm-ad-banner728')?.value.trim()||'',
+    banner320: document.getElementById('sa-cm-ad-banner320')?.value.trim()||'',
+    box300:    document.getElementById('sa-cm-ad-box300')?.value.trim()||'',
+    smart:     document.getElementById('sa-cm-ad-smart')?.value.trim()||''
+  };
 
   const data = {
     id,
@@ -1173,11 +1167,12 @@ document.getElementById('sa-cm-save').addEventListener('click', async () => {
     status:         document.getElementById('sa-cm-status').value || 'active',
     adsterraSiteId: document.getElementById('sa-cm-adsterra').value.trim(),
     notes:          document.getElementById('sa-cm-notes').value.trim(),
-    adPopunder:     document.getElementById('sa-cm-ad-popunder')?.value.trim()||'',
-    adBanner728:    document.getElementById('sa-cm-ad-banner728')?.value.trim()||'',
-    adBanner320:    document.getElementById('sa-cm-ad-banner320')?.value.trim()||'',
-    adBox300:       document.getElementById('sa-cm-ad-box300')?.value.trim()||'',
-    adSmart:        document.getElementById('sa-cm-ad-smart')?.value.trim()||'',
+    adPopunder:     adsObj.popunder,
+    adBanner728:    adsObj.banner728,
+    adBanner320:    adsObj.banner320,
+    adBox300:       adsObj.box300,
+    adSmart:        adsObj.smart,
+    ads:            adsObj,
     createdAt:      existing ? (existing.createdAt || new Date().toISOString()) : new Date().toISOString(),
     updatedAt:      new Date().toISOString(),
     totalEarning:   existing ? (existing.totalEarning  || 0) : 0,
@@ -1197,9 +1192,11 @@ document.getElementById('sa-cm-save').addEventListener('click', async () => {
     await saveClient(data);
 
     try {
+      await update(ref(db, `superAdmin/clients/${id}/ads`), adsObj);
       await update(ref(db, `clients/${id}/info`), data);
+      await update(ref(db, `clients/${id}/info/ads`), adsObj);
     } catch(syncErr) {
-      console.warn("Syncing to clients/info failed:", syncErr);
+      console.warn("Syncing to clients/info or ads failed:", syncErr);
     }
 
     console.log('✅ Client saved successfully');
@@ -1381,7 +1378,6 @@ function ghGetRepo()   { return (document.getElementById('sa-gh-repo')?.value ||
 function ghGetBranch() { return (document.getElementById('sa-gh-branch')?.value || '').trim() || localStorage.getItem('mnx_gh_branch') || 'main'; }
 
 async function deployToGitHub(clientId) {
-  // Token: field se pehle, phir localStorage se
   const fieldToken  = (document.getElementById('sa-gh-token')?.value || '').trim();
   const storedToken = localStorage.getItem('mnx_gh_token') || '';
   const token  = fieldToken || storedToken;
@@ -1397,17 +1393,10 @@ async function deployToGitHub(clientId) {
   const c = saClients.find(x => x.id === clientId);
   if (!c) throw new Error('Client nahi mila!');
 
-  // Generate HTML
   const html = await generateClientSiteHTML(clientId);
   const path = `clients/${c.username}/index.html`;
   const apiBase = `https://api.github.com/repos/${repo}/contents/${path}`;
 
-  console.log('[GitHub Deploy] Starting deployment...');
-  console.log('[GitHub Deploy] API URL:', apiBase);
-  console.log('[GitHub Deploy] Branch:', branch);
-  console.log('[GitHub Deploy] File Path:', path);
-
-  // Check if file already exists (to get SHA for update)
   let sha = null;
   let shaStatus = 'UNKNOWN';
   let shaResponseBody = null;
@@ -1422,9 +1411,6 @@ async function deployToGitHub(clientId) {
     shaStatus = existing.status;
     shaResponseBody = await existing.json().catch(() => null);
 
-    console.log('[GitHub Deploy] SHA Request Status:', shaStatus);
-    console.log('[GitHub Deploy] SHA Response:', shaResponseBody);
-
     if (existing.ok && shaResponseBody?.sha) {
       sha = shaResponseBody.sha;
     }
@@ -1432,7 +1418,6 @@ async function deployToGitHub(clientId) {
     console.warn('[GitHub Deploy] SHA fetch failed, continuing deployment without SHA:', e);
   }
 
-  // UTF-8 Safe Base64 encoding
   const encoder = new TextEncoder();
   const bytes = encoder.encode(html);
   let binary = '';
@@ -1442,7 +1427,6 @@ async function deployToGitHub(clientId) {
   }
   const content = btoa(binary);
 
-  // Push to GitHub
   const body = {
     message: `Deploy: ${c.name} (@${c.username}) — ${new Date().toISOString()}`,
     content,
@@ -1463,9 +1447,6 @@ async function deployToGitHub(clientId) {
   const deployStatus = res.status;
   const deployResponseBody = await res.json().catch(() => ({}));
 
-  console.log('[GitHub Deploy] Deploy Request Status:', deployStatus);
-  console.log('[GitHub Deploy] Deploy Response Body:', deployResponseBody);
-
   if (!res.ok) {
     const ghMessage = deployResponseBody?.message || 'No message provided';
     let msg = `GitHub Error ${deployStatus}: ${ghMessage}`;
@@ -1484,9 +1465,7 @@ async function deployToGitHub(clientId) {
   }
 
   const deployedUrl = `https://moonlightx.qd.je/clients/${c.username}/`;
-  console.log('[GitHub Deploy] Final Live URL:', deployedUrl);
 
-  // Save deployed URL to Firebase
   try {
     await update(ref(db, `superAdmin/clients/${clientId}`), { deployedUrl, deployedAt: new Date().toISOString() });
     await update(ref(db, `clients/${clientId}/info`), { deployedUrl, deployedAt: new Date().toISOString() });
@@ -1502,7 +1481,6 @@ function saLoadSettings() {
   const base       = 'https://moonlightx.qd.je/admin';
   const publicBase = 'https://moonlightx.qd.je';
 
-  // Auto-save correct values to localStorage
   localStorage.setItem('mnx_base_url',    base);
   localStorage.setItem('mnx_public_url',  publicBase);
 
@@ -1514,7 +1492,6 @@ function saLoadSettings() {
   document.getElementById('sa-url-preview').textContent  = base + '/#/admin/username';
   document.getElementById('sa-site-preview').textContent = publicBase + '/#/username';
 
-  // Load GitHub settings
   const ghT = document.getElementById('sa-gh-token');
   const ghR = document.getElementById('sa-gh-repo');
   const ghB = document.getElementById('sa-gh-branch');
@@ -1536,7 +1513,6 @@ document.getElementById('sa-save-base').addEventListener('click', () => {
   localStorage.setItem('mnx_base_url', url);
   document.getElementById('sa-base-url').value = url;
 
-  // Save public site URL
   const pubUrl = (document.getElementById('sa-public-url')?.value||'').trim().replace(/\/index\.(html?|php)$/i,'').replace(/\/+$/,'');
   if (pubUrl) {
     localStorage.setItem('mnx_public_url', pubUrl);
@@ -1640,7 +1616,6 @@ function clInitDB(clientId) {
     document.getElementById('cl-earn-fill').style.width   = pctBar+'%';
     document.getElementById('cl-earn-pct-lbl').textContent= pctBar.toFixed(0)+'%';
     clLoadProfile();
-    clLoadProfile();
   };
 
   onValue(ref(db,`superAdmin/clients/${clientId}`), handleClientDataSnap, err => {
@@ -1698,7 +1673,6 @@ function clResetProfile() {
   msg.textContent   = 'Reset ho gaya.';
   setTimeout(() => { msg.style.display = 'none'; }, 2000);
 }
-
 
 function clRenderDashImgs() {
   document.getElementById('cl-dash-imgs').innerHTML = clImages.slice(0,12).map(img=>`
@@ -1764,7 +1738,10 @@ function clPopulateCatDropdowns() {
 }
 
 function clClearImgForm() {
-  ['cl-m-id','cl-m-slug','cl-m-title','cl-m-desc','cl-m-thumb','cl-m-hires','cl-m-watch','cl-m-download','cl-m-gallery','cl-m-model','cl-m-res','cl-m-size','cl-m-tags','cl-m-up'].forEach(id=>document.getElementById(id).value='');
+  ['cl-m-id','cl-m-slug','cl-m-title','cl-m-desc','cl-m-thumb','cl-m-hires','cl-img-watch-url','cl-m-watch','cl-img-download-url','cl-m-download','cl-m-gallery','cl-m-model','cl-m-res','cl-m-size','cl-m-tags','cl-m-up'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
   ['cl-m-views','cl-m-likes'].forEach(id=>document.getElementById(id).value='0');
   ['cl-m-ft','cl-m-tr','cl-m-pp','cl-m-nw'].forEach(id=>document.getElementById(id).checked=false);
   document.getElementById('cl-m-aspect').value='portrait';
@@ -1796,8 +1773,13 @@ function clOpenEditImg(id) {
   document.getElementById('cl-m-aspect').value=img.aspectRatio||'portrait';
   document.getElementById('cl-m-thumb').value=img.thumbnailUrl||'';
   document.getElementById('cl-m-hires').value=img.highResUrl||'';
-  document.getElementById('cl-m-watch').value=img.watchUrl||'';
-  document.getElementById('cl-m-download').value=img.downloadUrl||'';
+
+  const wEl = document.getElementById('cl-img-watch-url') || document.getElementById('cl-m-watch');
+  if (wEl) wEl.value = img.watchUrl||'';
+
+  const dEl = document.getElementById('cl-img-download-url') || document.getElementById('cl-m-download');
+  if (dEl) dEl.value = img.downloadUrl||'';
+
   document.getElementById('cl-m-gallery').value=(img.galleryImages||[]).join('\n');
   document.getElementById('cl-m-model').value=img.modelName||'';
   document.getElementById('cl-m-res').value=img.resolution||'';
@@ -1826,8 +1808,10 @@ document.getElementById('cl-im-save').addEventListener('click', async ()=>{
   const thumb=document.getElementById('cl-m-thumb').value.trim(), hires=document.getElementById('cl-m-hires').value.trim();
   const slug=document.getElementById('cl-m-slug').value.trim();
   if(!id||!title||!thumb||!hires||!slug){toast('❌ ID, Slug, Title, Thumb & HiRes required!','err');return;}
-  const watchUrl = document.getElementById('cl-m-watch').value.trim();
-  const downloadUrl = document.getElementById('cl-m-download').value.trim();
+
+  const watchUrl = (document.getElementById('cl-img-watch-url')?.value || document.getElementById('cl-m-watch')?.value || '').trim();
+  const downloadUrl = (document.getElementById('cl-img-download-url')?.value || document.getElementById('cl-m-download')?.value || '').trim();
+
   const data={
     id,slug,title,description:document.getElementById('cl-m-desc').value.trim(),
     category:document.getElementById('cl-m-cat').value,aspectRatio:document.getElementById('cl-m-aspect').value,
