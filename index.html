@@ -16,6 +16,28 @@
   <!-- POPUNDER placeholder -->
   <div id="mlx-popunder-slot"></div>
 
+  <!-- STEP 1: Globals synchronously set BEFORE app.js loads -->
+  <script>
+    window.__mlxImgPath    = 'globalSite/images';
+    window.__mlxCatPath    = 'globalSite/categories';
+    window.__mlxClientId   = 'global';
+    window.__mlxClientName = 'Moon Light X';
+    window.__mlxProfile = {
+      bio: '',
+      avatar: '',
+      instagram: '',
+      telegram: '',
+      socialLinks: { instagram: '', telegram: '' }
+    };
+    window.__mlxAds = {
+      popunder:  '',
+      banner728: '',
+      banner320: '',
+      box300:    '',
+      smart:     ''
+    };
+  </script>
+
   <script type="module">
     import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
     import { getDatabase, ref, get, update }   from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
