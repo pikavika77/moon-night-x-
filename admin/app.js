@@ -767,7 +767,7 @@ async function generateClientSiteHTML(clientId) {
   <meta name="description" content="${name.replace(/"/g,'&quot;')} – premium curated 18+ adult gallery. Fast, mobile-first platform with HD photography. Adults 18+ only.">
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#050505">
-  <link rel="stylesheet" href="../../app.css">
+  <link rel="stylesheet" href="https://moonlightx.qd.je/app.css">
 
   <!-- POPUNDER placeholder -->
   <div id="mlx-popunder-slot"></div>
@@ -893,7 +893,7 @@ async function generateClientSiteHTML(clientId) {
 </head>
 <body>
   <div id="root"></div>
-  <script src="../../app.js"><\/script>
+  <script src="https://moonlightx.qd.je/app.js"><\/script>
 </body>
 </html>`;
 }
