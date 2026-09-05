@@ -18,8 +18,8 @@
 
   <!-- STEP 1: Globals synchronously set BEFORE app.js loads -->
   <script>
-    window.__mlxImgPath    = 'globalSite/images';
-    window.__mlxCatPath    = 'globalSite/categories';
+    window.__mlxImgPath    = 'images';
+    window.__mlxCatPath    = 'categories';
     window.__mlxClientId   = 'global';
     window.__mlxClientName = 'Moon Light X';
     window.__mlxProfile = {
@@ -127,8 +127,8 @@
       const username = getUsernameFromHash();
 
       if (!username) {
-        window.__mlxImgPath    = 'globalSite/images';
-        window.__mlxCatPath    = 'globalSite/categories';
+        window.__mlxImgPath    = 'images';
+        window.__mlxCatPath    = 'categories';
         window.__mlxClientId   = 'global';
         window.__mlxClientName = 'Moon Light X';
 
@@ -224,8 +224,8 @@
           injectBannerAds(window.__mlxAds);
 
         } else {
-          window.__mlxImgPath    = 'globalSite/images';
-          window.__mlxCatPath    = 'globalSite/categories';
+          window.__mlxImgPath    = 'images';
+          window.__mlxCatPath    = 'categories';
           window.__mlxClientId   = 'global';
           window.__mlxClientName = 'Moon Light X';
           window.__mlxProfile    = {};
@@ -233,8 +233,8 @@
         }
       } catch(e) {
         console.warn('Resolver error:', e);
-        window.__mlxImgPath    = 'globalSite/images';
-        window.__mlxCatPath    = 'globalSite/categories';
+        window.__mlxImgPath    = 'images';
+        window.__mlxCatPath    = 'categories';
         window.__mlxClientId   = 'global';
         window.__mlxClientName = 'Moon Light X';
         window.__mlxProfile    = {};
