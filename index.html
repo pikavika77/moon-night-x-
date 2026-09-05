@@ -16,6 +16,20 @@
   <!-- POPUNDER placeholder -->
   <div id="mlx-popunder-slot"></div>
 
+  <!-- STEP 1: Set all window.__mlx* with defaults synchronously FIRST -->
+  <script>
+    window.__mlxImgPath    = 'globalSite/images';
+    window.__mlxCatPath    = 'globalSite/categories';
+    window.__mlxClientId   = 'global';
+    window.__mlxClientName = 'Moon Light X';
+    window.__mlxProfile    = {};
+    window.__mlxAds        = {};
+  </script>
+
+  <!-- STEP 2: Load app.js (loads with defaults already set) -->
+  <script src="./app.js"></script>
+
+  <!-- STEP 3: Firebase async — fetch data → update globals → re-render/inject -->
   <script type="module">
     import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
     import { getDatabase, ref, get, update }   from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
@@ -30,7 +44,6 @@
       appId:             "1:779934381788:web:1426fa035171015634a619"
     };
 
-    /* FIX 1: Firebase init ONCE — pehle har hashchange pe crash hota tha */
     const fbApp = getApps().length ? getApp() : initializeApp(FB);
     const db    = getDatabase(fbApp);
 
@@ -140,8 +153,6 @@
           injectBannerAds(window.__mlxAds);
         } catch(e) {
           console.warn('Global site data load error:', e);
-          window.__mlxAds     = {};
-          window.__mlxProfile = {};
         }
         return;
       }
@@ -171,11 +182,16 @@
           window.__mlxClientName = client.name || 'Moon Light X';
           if (client.name) document.title = `${client.name} — Premium 18+ Gallery`;
 
-          /* FIX 2: Profile fetch from correct path — pehle client.profile padhta tha jo kabhi save nahi hota */
           let p = {};
           try {
             const pSnap = await get(ref(db, `clients/${cid}/info/profile`));
             if (pSnap.exists()) p = pSnap.val();
+          } catch(e) {}
+
+          let ads = client.ads || {};
+          try {
+            const aSnap = await get(ref(db, `clients/${cid}/info/ads`));
+            if (aSnap.exists()) ads = { ...ads, ...aSnap.val() };
           } catch(e) {}
 
           window.__mlxProfile = {
@@ -190,10 +206,10 @@
           };
 
           window.__mlxAds = {
-            popunder:  client.adPopunder  || '',
-            banner728: client.adBanner728 || '',
-            banner320: client.adBanner320 || '',
-            box300:    client.adBox300    || '',
+            popunder:  ads.popunder  || client.adPopunder  || '',
+            banner728: ads.banner728 || client.adBanner728 || '',
+            banner320: ads.banner320 || client.adBanner320 || '',
+            box300:    ads.box300    || client.adBox300    || '',
             smart:     client.adSmart     || ''
           };
 
@@ -211,12 +227,6 @@
         }
       } catch(e) {
         console.warn('Resolver error:', e);
-        window.__mlxImgPath    = 'globalSite/images';
-        window.__mlxCatPath    = 'globalSite/categories';
-        window.__mlxClientId   = 'global';
-        window.__mlxClientName = 'Moon Light X';
-        window.__mlxProfile    = {};
-        window.__mlxAds        = {};
       }
     }
 
@@ -226,6 +236,5 @@
 </head>
 <body>
   <div id="root"></div>
-  <script src="./app.js"></script>
 </body>
 </html>

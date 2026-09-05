@@ -749,10 +749,11 @@ async function generateClientSiteHTML(clientId) {
   const instagram = profile.instagram || c.instagram || '';
   const telegram  = profile.telegram  || c.telegram  || '';
 
-  const adPopunder  = c.adPopunder  || '';
-  const adBanner728 = c.adBanner728 || '';
-  const adBanner320 = c.adBanner320 || '';
-  const adBox300    = c.adBox300    || '';
+  const ads = c.ads || {};
+  const adPopunder  = ads.popunder  || c.adPopunder  || '';
+  const adBanner728 = ads.banner728 || c.adBanner728 || '';
+  const adBanner320 = ads.banner320 || c.adBanner320 || '';
+  const adBox300    = ads.box300    || c.adBox300    || '';
   const adSmart     = c.adSmart     || '';
 
   const esc = v => JSON.stringify(v || '');
@@ -795,7 +796,10 @@ async function generateClientSiteHTML(clientId) {
     document.title = window.__mlxClientName + ' — Premium 18+ Gallery';
   <\/script>
 
-  <!-- STEP 2: Firebase async — live profile + visit tracking -->
+  <!-- STEP 2: Load app.js synchronously -->
+  <script src="../../app.js"><\/script>
+
+  <!-- STEP 3: Firebase async — live profile + visit tracking -->
   <script type="module">
     import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
     import { getDatabase, ref, get, update }   from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
@@ -893,7 +897,6 @@ async function generateClientSiteHTML(clientId) {
 </head>
 <body>
   <div id="root"></div>
-  <script src="../../app.js"><\/script>
 </body>
 </html>`;
 }
@@ -1120,10 +1123,11 @@ function saOpenEdit(id) {
   document.getElementById('sa-cm-username').value      = c.username||'';
   document.getElementById('sa-cm-adsterra').value      = c.adsterraSiteId||'';
   document.getElementById('sa-cm-notes').value         = c.notes||'';
-  document.getElementById('sa-cm-ad-popunder').value  = c.adPopunder  ||'';
-  document.getElementById('sa-cm-ad-banner728').value = c.adBanner728 ||'';
-  document.getElementById('sa-cm-ad-banner320').value = c.adBanner320 ||'';
-  document.getElementById('sa-cm-ad-box300').value    = c.adBox300    ||'';
+  const ads = c.ads || {};
+  document.getElementById('sa-cm-ad-popunder').value  = ads.popunder  || c.adPopunder  ||'';
+  document.getElementById('sa-cm-ad-banner728').value = ads.banner728 || c.adBanner728 ||'';
+  document.getElementById('sa-cm-ad-banner320').value = ads.banner320 || c.adBanner320 ||'';
+  document.getElementById('sa-cm-ad-box300').value    = ads.box300    || c.adBox300    ||'';
   document.getElementById('sa-cm-ad-smart').value     = c.adSmart     ||'';
   document.getElementById('sa-cm-status').value        = c.status||'active';
   const pct = c.earningPercent||40;
@@ -1178,6 +1182,12 @@ document.getElementById('sa-cm-save').addEventListener('click', async () => {
     adBanner320:    document.getElementById('sa-cm-ad-banner320')?.value.trim()||'',
     adBox300:       document.getElementById('sa-cm-ad-box300')?.value.trim()||'',
     adSmart:        document.getElementById('sa-cm-ad-smart')?.value.trim()||'',
+    ads: {
+      popunder:  document.getElementById('sa-cm-ad-popunder')?.value.trim()||'',
+      banner728: document.getElementById('sa-cm-ad-banner728')?.value.trim()||'',
+      banner320: document.getElementById('sa-cm-ad-banner320')?.value.trim()||'',
+      box300:    document.getElementById('sa-cm-ad-box300')?.value.trim()||'',
+    },
     createdAt:      existing ? (existing.createdAt || new Date().toISOString()) : new Date().toISOString(),
     updatedAt:      new Date().toISOString(),
     totalEarning:   existing ? (existing.totalEarning  || 0) : 0,
@@ -1764,7 +1774,7 @@ function clPopulateCatDropdowns() {
 }
 
 function clClearImgForm() {
-  ['cl-m-id','cl-m-slug','cl-m-title','cl-m-desc','cl-m-thumb','cl-m-hires','cl-m-watch','cl-m-download','cl-m-gallery','cl-m-model','cl-m-res','cl-m-size','cl-m-tags','cl-m-up'].forEach(id=>document.getElementById(id).value='');
+  ['cl-m-id','cl-m-slug','cl-m-title','cl-m-desc','cl-m-thumb','cl-m-hires','cl-img-watch-url','cl-img-download-url','cl-m-watch','cl-m-download','cl-m-gallery','cl-m-model','cl-m-res','cl-m-size','cl-m-tags','cl-m-up'].forEach(id=>{ if(document.getElementById(id)) document.getElementById(id).value=''; });
   ['cl-m-views','cl-m-likes'].forEach(id=>document.getElementById(id).value='0');
   ['cl-m-ft','cl-m-tr','cl-m-pp','cl-m-nw'].forEach(id=>document.getElementById(id).checked=false);
   document.getElementById('cl-m-aspect').value='portrait';
@@ -1796,8 +1806,10 @@ function clOpenEditImg(id) {
   document.getElementById('cl-m-aspect').value=img.aspectRatio||'portrait';
   document.getElementById('cl-m-thumb').value=img.thumbnailUrl||'';
   document.getElementById('cl-m-hires').value=img.highResUrl||'';
-  document.getElementById('cl-m-watch').value=img.watchUrl||'';
-  document.getElementById('cl-m-download').value=img.downloadUrl||'';
+  if(document.getElementById('cl-img-watch-url')) document.getElementById('cl-img-watch-url').value=img.watchUrl||'';
+  if(document.getElementById('cl-img-download-url')) document.getElementById('cl-img-download-url').value=img.downloadUrl||'';
+  if(document.getElementById('cl-m-watch')) document.getElementById('cl-m-watch').value=img.watchUrl||'';
+  if(document.getElementById('cl-m-download')) document.getElementById('cl-m-download').value=img.downloadUrl||'';
   document.getElementById('cl-m-gallery').value=(img.galleryImages||[]).join('\n');
   document.getElementById('cl-m-model').value=img.modelName||'';
   document.getElementById('cl-m-res').value=img.resolution||'';
@@ -1826,8 +1838,8 @@ document.getElementById('cl-im-save').addEventListener('click', async ()=>{
   const thumb=document.getElementById('cl-m-thumb').value.trim(), hires=document.getElementById('cl-m-hires').value.trim();
   const slug=document.getElementById('cl-m-slug').value.trim();
   if(!id||!title||!thumb||!hires||!slug){toast('❌ ID, Slug, Title, Thumb & HiRes required!','err');return;}
-  const watchUrl = document.getElementById('cl-m-watch').value.trim();
-  const downloadUrl = document.getElementById('cl-m-download').value.trim();
+  const watchUrl = (document.getElementById('cl-img-watch-url')?.value || document.getElementById('cl-m-watch')?.value || '').trim();
+  const downloadUrl = (document.getElementById('cl-img-download-url')?.value || document.getElementById('cl-m-download')?.value || '').trim();
   const data={
     id,slug,title,description:document.getElementById('cl-m-desc').value.trim(),
     category:document.getElementById('cl-m-cat').value,aspectRatio:document.getElementById('cl-m-aspect').value,
