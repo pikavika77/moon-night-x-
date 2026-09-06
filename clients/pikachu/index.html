@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pikachu — Premium 18+ Gallery</title>
+  <link rel="icon" type="image/png" href="https://moonlightx.qd.je/favicon.png">
+  <meta name="description" content="Pikachu – premium curated 18+ adult gallery. Fast, mobile-first platform with HD photography. Adults 18+ only.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#050505">
+  <link rel="stylesheet" href="https://moonlightx.qd.je/app.css">
+
+  <!-- POPUNDER placeholder -->
+  <div id="mlx-popunder-slot"></div>
+
+  <!-- STEP 1: Globals synchronously set BEFORE app.js loads -->
+  <script>
+    var hash = window.location.hash || '';
+    var parts = hash.split('/');
+    var directImgId = parts[2] || '';
+    if (directImgId) {
+      window.__mlxDirectImageId = directImgId;
+    }
+
+    window.__mlxImgPath    = 'clients/cl_pikachu_1788697966974/images';
+    window.__mlxCatPath    = 'clients/cl_pikachu_1788697966974/categories';
+    window.__mlxClientId   = "cl_pikachu_1788697966974";
+    window.__mlxClientName = "Pikachu";
+    window.__mlxProfile = {
+      bio:       "",
+      avatar:    "",
+      instagram: "",
+      telegram:  "",
+      socialLinks: { instagram: "", telegram: "" }
+    };
+    window.__mlxAds = {
+      popunder:  "<script src=\"https://pl30770374.profitableratecpmnetwork.com/bd/88/c0/bd88c0d7bbd485e01cb30308c24099f3.js\"></script>",
+      banner728: "<script>\n  atOptions = {\n    'key' : '8df869d3e75af76fa646bbe0839d3846',\n    'format' : 'iframe',\n    'height' : 90,\n    'width' : 728,\n    'params' : {}\n  };\n</script>\n<script src=\"https://www.highrevenueformat.com/8df869d3e75af76fa646bbe0839d3846/invoke.js\"></script>",
+      banner320: "<script>\n  atOptions = {\n    'key' : 'dc78abb4b5f1a5dd29d6bfb9fb4be8c3',\n    'format' : 'iframe',\n    'height' : 50,\n    'width' : 320,\n    'params' : {}\n  };\n</script>\n<script src=\"https://www.highrevenueformat.com/dc78abb4b5f1a5dd29d6bfb9fb4be8c3/invoke.js\"></script>",
+      box300:    "<script>\n  atOptions = {\n    'key' : '86a5f408cf04dec6c08fa74d451c90e6',\n    'format' : 'iframe',\n    'height' : 250,\n    'width' : 300,\n    'params' : {}\n  };\n</script>\n<script src=\"https://www.highrevenueformat.com/86a5f408cf04dec6c08fa74d451c90e6/invoke.js\"></script>",
+      smart:     "https://www.profitableratecpmnetwork.com/pfx8ida0q?key=35ee6c65d7ab88218cfe278e62e889ca"
+    };
+    document.title = window.__mlxClientName + ' — Premium 18+ Gallery';
+  </script>
+
+  <!-- STEP 2: Firebase async — live profile + visit tracking -->
+  <script type="module">
+    import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+    import { getDatabase, ref, get, update, set }   from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
+
+    const FB = {
+      apiKey:            "AIzaSyACW8aFQmlaoaxNtE55m8Pck6H8BRlfEbs",
+      authDomain:        "moon-night-x.firebaseapp.com",
+      databaseURL:       "https://moon-night-x-default-rtdb.firebaseio.com",
+      projectId:         "moon-night-x",
+      storageBucket:     "moon-night-x.firebasestorage.app",
+      messagingSenderId: "779934381788",
+      appId:             "1:779934381788:web:1426fa035171015634a619"
+    };
+
+    const fbApp = getApps().length ? getApp() : initializeApp(FB);
+    const db    = getDatabase(fbApp);
+
+    /* ── Report handler for React app ── */
+    window.__mlxReportHandler = async function(imageId, reason) {
+      const reportId = Date.now() + '_' + Math.random().toString(36).slice(2);
+      const reportData = {
+        imageId,
+        reason:      reason || 'inappropriate',
+        clientId:    "cl_pikachu_1788697966974",
+        clientName:  "Pikachu",
+        imagePath:   'clients/cl_pikachu_1788697966974/images/' + imageId,
+        reportedAt:  new Date().toISOString(),
+        status:      'pending',
+        reporterInfo: { userAgent: navigator.userAgent }
+      };
+      await set(ref(db, 'reports/' + reportId), reportData);
+      await set(ref(db, 'superAdmin/reports/' + reportId), reportData);
+      try {
+        const cntRef = ref(db, 'clients/cl_pikachu_1788697966974/reports/' + imageId + '/count');
+        const snap = await get(cntRef);
+        const curCount = snap.exists() ? snap.val() : 0;
+        await set(cntRef, curCount + 1);
+      } catch(e) {}
+    };
+
+    /* Live profile update from Firebase */
+    try {
+      const pSnap = await get(ref(db, 'clients/cl_pikachu_1788697966974/info/profile'));
+      if (pSnap.exists()) {
+        const p = pSnap.val();
+        window.__mlxProfile = {
+          bio:       p.bio       || "",
+          avatar:    p.avatar    || "",
+          instagram: p.instagram || "",
+          telegram:  p.telegram  || "",
+          socialLinks: {
+            instagram: p.instagram || "",
+            telegram:  p.telegram  || ""
+          }
+        };
+      }
+    } catch(e) {}
+
+    /* ── Execute scripts injected via innerHTML ── */
+    function execScriptsIn(el) {
+      el.querySelectorAll('script').forEach(old => {
+        const s = document.createElement('script');
+        if (old.src) { s.src = old.src; s.async = true; }
+        else { s.textContent = old.textContent; }
+        old.parentNode.replaceChild(s, old);
+      });
+    }
+
+    /* ── Inject popunder ── */
+    function injectPopunder(code) {
+      if (!code) return;
+      const div = document.getElementById('mlx-popunder-slot');
+      if (div) { div.innerHTML = code; execScriptsIn(div); }
+    }
+
+    /* ── Inject banner/box ads into React ad slots ── */
+    function injectBannerAds(ads) {
+      if (!ads) return;
+      const SLOT_MAP = {
+        'adsterra-top-leaderboard':    window.__mlxAds.banner728 || '',
+        'adsterra-native-incontent':   window.__mlxAds.box300    || '',
+        'adsterra-sidebar-skyscraper': window.__mlxAds.smart     || '',
+        'adsterra-mobile-sticky':      window.__mlxAds.banner320 || '',
+        'adsterra-bottom-footer':      window.__mlxAds.banner728 || ''
+      };
+      const injected   = new Set();
+      const totalSlots = Object.values(SLOT_MAP).filter(Boolean).length;
+      if (totalSlots === 0) return;
+      const obs = new MutationObserver(() => {
+        Object.entries(SLOT_MAP).forEach(([sid, code]) => {
+          if (!code || injected.has(sid)) return;
+          const el = document.getElementById(sid);
+          if (el) { el.innerHTML = code; el.dataset.injected = 'true'; execScriptsIn(el); injected.add(sid); }
+        });
+        if (injected.size >= totalSlots) obs.disconnect();
+      });
+      obs.observe(document.body, { childList: true, subtree: true });
+      setTimeout(() => obs.disconnect(), 25000);
+    }
+
+    injectPopunder(window.__mlxAds.popunder);
+    injectBannerAds(window.__mlxAds);
+
+    /* ── Visit tracking ── */
+    try {
+      const today   = new Date().toISOString().slice(0, 10);
+      const infoRef = ref(db, 'clients/cl_pikachu_1788697966974/info');
+      const snap    = await get(infoRef);
+      const cur     = snap.exists() ? snap.val() : {};
+      const upd     = { totalVisits: (cur.totalVisits || 0) + 1 };
+      if (cur.todayKey === today) { upd.todayVisits = (cur.todayVisits || 0) + 1; }
+      else { upd.todayVisits = 1; upd.todayKey = today; }
+      await update(infoRef, upd);
+      await update(ref(db, 'superAdmin/clients/cl_pikachu_1788697966974'), upd).catch(() => {});
+    } catch(e) { console.warn('Visit track:', e.message); }
+
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://moonlightx.qd.je/app.js"></script>
+</body>
+</html>
