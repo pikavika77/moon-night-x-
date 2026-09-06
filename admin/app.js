@@ -425,6 +425,8 @@ function saShowPage(name) {
   if(name === 'settings')     saLoadSettings();
   if(name === 'site-gallery') saInitGlobalSite();
   if(name === 'site-ads')     saInitGlobalSite();
+  if(name === 'reports')      saInitReports();
+  if(name === 'all-galleries') saInitAllGalleries();
 }
 document.querySelectorAll('[data-sa-page]').forEach(el =>
   el.addEventListener('click', () => saShowPage(el.dataset.saPage)));
@@ -762,6 +764,13 @@ async function generateClientSiteHTML(clientId) {
 
   <!-- STEP 1: Globals synchronously set BEFORE app.js loads -->
   <script>
+    var hash = window.location.hash || '';
+    var parts = hash.split('/');
+    var directImgId = parts[2] || '';
+    if (directImgId) {
+      window.__mlxDirectImageId = directImgId;
+    }
+
     window.__mlxImgPath    = 'clients/${id}/images';
     window.__mlxCatPath    = 'clients/${id}/categories';
     window.__mlxClientId   = ${esc(id)};
@@ -786,7 +795,7 @@ async function generateClientSiteHTML(clientId) {
   <!-- STEP 2: Firebase async — live profile + visit tracking -->
   <script type="module">
     import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-    import { getDatabase, ref, get, update }   from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
+    import { getDatabase, ref, get, update, set }   from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
 
     const FB = {
       apiKey:            "AIzaSyACW8aFQmlaoaxNtE55m8Pck6H8BRlfEbs",
@@ -800,6 +809,29 @@ async function generateClientSiteHTML(clientId) {
 
     const fbApp = getApps().length ? getApp() : initializeApp(FB);
     const db    = getDatabase(fbApp);
+
+    /* ── Report handler for React app ── */
+    window.__mlxReportHandler = async function(imageId, reason) {
+      const reportId = Date.now() + '_' + Math.random().toString(36).slice(2);
+      const reportData = {
+        imageId,
+        reason:      reason || 'inappropriate',
+        clientId:    ${esc(id)},
+        clientName:  ${esc(name)},
+        imagePath:   'clients/${id}/images/' + imageId,
+        reportedAt:  new Date().toISOString(),
+        status:      'pending',
+        reporterInfo: { userAgent: navigator.userAgent }
+      };
+      await set(ref(db, 'reports/' + reportId), reportData);
+      await set(ref(db, 'superAdmin/reports/' + reportId), reportData);
+      try {
+        const cntRef = ref(db, 'clients/${id}/reports/' + imageId + '/count');
+        const snap = await get(cntRef);
+        const curCount = snap.exists() ? snap.val() : 0;
+        await set(cntRef, curCount + 1);
+      } catch(e) {}
+    };
 
     /* Live profile update from Firebase */
     try {
@@ -1677,6 +1709,7 @@ function clShowPage(name) {
   document.querySelector(`[data-cl-page="${name}"]`)?.classList.add('on');
   if(name==='earning') clRenderEarning();
   if(name==='profile')  clLoadProfile();
+  if(name==='reports')  clInitReports();
 }
 document.querySelectorAll('[data-cl-page]').forEach(el => el.addEventListener('click', () => clShowPage(el.dataset.clPage)));
 document.querySelectorAll('[data-cl-goto]').forEach(el  => el.addEventListener('click', () => clShowPage(el.dataset.clGoto)));
@@ -2017,6 +2050,302 @@ function clRenderEarning(){
     </tr>`).join('')
   || '<tr><td colspan="4"><div class="empty"><div class="eic">💰</div>No earning history yet</div></td></tr>';
 }
+
+// ── SUPER ADMIN REPORTS ────────────────────────────────────────────────
+let saReportsList = [];
+let _saReportsListening = false;
+
+function saInitReports() {
+  if (_saReportsListening) {
+    saRenderReports();
+    return;
+  }
+  _saReportsListening = true;
+  onValue(ref(db, 'superAdmin/reports'), snap => {
+    saReportsList = [];
+    if (snap.exists()) {
+      const val = snap.val();
+      saReportsList = Object.entries(val).map(([id, r]) => ({ ...r, reportId: id }));
+    }
+    saRenderReports();
+  });
+}
+
+async function saRenderReports() {
+  const el = document.getElementById('sa-reports-list');
+  if (!el) return;
+  const nb = document.getElementById('sa-nb-reports');
+  const pendingCount = saReportsList.filter(r => r.status === 'pending').length;
+  if (nb) nb.textContent = pendingCount;
+
+  if (!saReportsList.length) {
+    el.innerHTML = '<div class="empty"><div class="eic">🚨</div>No reports found</div>';
+    return;
+  }
+
+  const sorted = [...saReportsList].sort((a,b) => new Date(b.reportedAt || 0) - new Date(a.reportedAt || 0));
+
+  let html = '';
+  for (const r of sorted) {
+    let imgThumb = '';
+    let imgTitle = r.imageTitle || r.imageId || 'Image';
+    try {
+      if (r.imagePath) {
+        const imgSnap = await get(ref(db, r.imagePath));
+        if (imgSnap.exists()) {
+          const imgData = imgSnap.val();
+          imgThumb = imgData.thumbnailUrl || imgData.thumb || imgData.thumbnail || imgData.url || imgData.highResUrl || imgData.hires || '';
+          imgTitle = imgData.title || imgTitle;
+        }
+      }
+    } catch(e) {}
+
+    const statusClass = r.status === 'reviewed' ? 'blu' : (r.status === 'removed' ? 'mu' : 'ylw');
+    const statusText  = (r.status || 'pending').toUpperCase();
+    const dateStr     = r.reportedAt ? new Date(r.reportedAt).toLocaleString() : '—';
+
+    html += `
+      <div class="card" style="padding:16px;margin:0;display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+        ${imgThumb ? `<img src="${escapeHTML(imgThumb)}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--br)"/>` : `<div style="width:90px;height:90px;background:var(--s2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px">🖼️</div>`}
+        <div style="flex:1;min-width:200px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-weight:700;font-size:14px">${escapeHTML(imgTitle)}</span>
+            <span class="tag ${statusClass}">${escapeHTML(statusText)}</span>
+          </div>
+          <div style="font-size:12px;color:var(--mu);margin-bottom:4px">Client: <strong style="color:var(--tx)">${escapeHTML(r.clientName || r.clientId || 'Unknown')}</strong></div>
+          <div style="font-size:12px;color:var(--red);margin-bottom:4px">Reason: <strong>${escapeHTML(r.reason || 'Inappropriate')}</strong></div>
+          <div style="font-size:11px;color:var(--mu);font-family:monospace">Date: ${escapeHTML(dateStr)}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;min-width:130px">
+          ${r.status !== 'reviewed' && r.status !== 'removed' ? `<button class="btn btn-b btn-xs" onclick="saMarkReportReviewed('${escapeHTML(r.reportId)}')">✓ Mark Reviewed</button>` : ''}
+          ${r.status !== 'removed' ? `<button class="btn btn-d btn-xs" onclick="saRemoveReportedImage('${escapeHTML(r.reportId)}', '${escapeHTML(r.clientId)}', '${escapeHTML(r.imageId)}')">🗑 Remove Image</button>` : ''}
+          <button class="btn btn-g btn-xs" onclick="saDismissReport('${escapeHTML(r.reportId)}')">✕ Dismiss</button>
+        </div>
+      </div>
+    `;
+  }
+  el.innerHTML = html;
+}
+
+async function saMarkReportReviewed(reportId) {
+  try {
+    await update(ref(db, `superAdmin/reports/${reportId}`), { status: 'reviewed' });
+    await update(ref(db, `reports/${reportId}`), { status: 'reviewed' }).catch(() => {});
+    toast('✅ Report marked as reviewed');
+  } catch(e) {
+    toast('❌ ' + e.message, 'err');
+  }
+}
+
+async function saRemoveReportedImage(reportId, clientId, imageId) {
+  if (!confirm('Are you sure you want to delete this reported image?')) return;
+  try {
+    const imgPath = clientId === 'global' ? `globalSite/images/${imageId}` : `clients/${clientId}/images/${imageId}`;
+    await remove(ref(db, imgPath));
+    await update(ref(db, `superAdmin/reports/${reportId}`), { status: 'removed' });
+    await update(ref(db, `reports/${reportId}`), { status: 'removed' }).catch(() => {});
+    toast('Image removed successfully');
+    saAddLog('del', `Removed reported image "${imageId}" from client "${clientId}"`);
+  } catch(e) {
+    toast('❌ ' + e.message, 'err');
+  }
+}
+
+async function saDismissReport(reportId) {
+  if (!confirm('Dismiss this report?')) return;
+  try {
+    await remove(ref(db, `superAdmin/reports/${reportId}`));
+    await remove(ref(db, `reports/${reportId}`)).catch(() => {});
+    toast('Report dismissed');
+  } catch(e) {
+    toast('❌ ' + e.message, 'err');
+  }
+}
+
+// ── CLIENT ADMIN REPORTS ───────────────────────────────────────────────
+let clReportsList = [];
+let _clReportsListening = false;
+
+function clInitReports() {
+  const clientId = clClientData?.id;
+  if (!clientId) return;
+
+  if (_clReportsListening) {
+    clRenderReports();
+    return;
+  }
+  _clReportsListening = true;
+  onValue(ref(db, 'reports'), snap => {
+    clReportsList = [];
+    if (snap.exists()) {
+      const val = snap.val();
+      clReportsList = Object.entries(val)
+        .map(([id, r]) => ({ ...r, reportId: id }))
+        .filter(r => r.clientId === clientId);
+    }
+    clRenderReports();
+  });
+}
+
+async function clRenderReports() {
+  const el = document.getElementById('cl-reports-list');
+  if (!el) return;
+  const nb = document.getElementById('cl-nb-reports');
+  if (nb) nb.textContent = clReportsList.length;
+
+  if (!clReportsList.length) {
+    el.innerHTML = '<div class="empty"><div class="eic">🚨</div>No reported images</div>';
+    return;
+  }
+
+  const sorted = [...clReportsList].sort((a,b) => new Date(b.reportedAt || 0) - new Date(a.reportedAt || 0));
+
+  let html = '';
+  for (const r of sorted) {
+    let imgThumb = '';
+    let imgTitle = r.imageTitle || r.imageId || 'Image';
+    try {
+      if (r.imagePath) {
+        const imgSnap = await get(ref(db, r.imagePath));
+        if (imgSnap.exists()) {
+          const imgData = imgSnap.val();
+          imgThumb = imgData.thumbnailUrl || imgData.thumb || imgData.thumbnail || imgData.url || imgData.highResUrl || imgData.hires || '';
+          imgTitle = imgData.title || imgTitle;
+        }
+      }
+    } catch(e) {}
+
+    const statusClass = r.status === 'reviewed' ? 'blu' : (r.status === 'removed' ? 'mu' : 'ylw');
+    const statusText  = (r.status || 'pending').toUpperCase();
+    const dateStr     = r.reportedAt ? new Date(r.reportedAt).toLocaleString() : '—';
+
+    html += `
+      <div class="card" style="padding:16px;margin:0;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+        ${imgThumb ? `<img src="${escapeHTML(imgThumb)}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--br)"/>` : `<div style="width:80px;height:80px;background:var(--s2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px">🖼️</div>`}
+        <div style="flex:1;min-width:200px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-weight:700;font-size:14px">${escapeHTML(imgTitle)}</span>
+            <span class="tag ${statusClass}">${escapeHTML(statusText)}</span>
+          </div>
+          <div style="font-size:12px;color:var(--red);margin-bottom:4px">Reason: <strong>${escapeHTML(r.reason || 'Inappropriate')}</strong></div>
+          <div style="font-size:11px;color:var(--mu);font-family:monospace">Date: ${escapeHTML(dateStr)}</div>
+        </div>
+      </div>
+    `;
+  }
+  el.innerHTML = html;
+}
+
+// ── SUPER ADMIN ALL GALLERIES ──────────────────────────────────────────
+let saAllImages = [];
+
+function saInitAllGalleries() {
+  const sel = document.getElementById('sa-ag-client-filter');
+  if (sel) {
+    const curVal = sel.value;
+    sel.innerHTML = '<option value="">All Clients</option>' +
+      saClients.map(c => `<option value="${escapeHTML(c.id)}">${escapeHTML(c.name || c.username)}</option>`).join('');
+    sel.value = curVal;
+    sel.onchange = saRenderAllGalleries;
+  }
+  saFetchAllGalleries();
+}
+
+async function saFetchAllGalleries() {
+  saAllImages = [];
+  const grid = document.getElementById('sa-all-galleries-grid');
+  if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="eic">⏳</div>Loading galleries...</div>';
+
+  for (const c of saClients) {
+    try {
+      const snap = await get(ref(db, `clients/${c.id}/images`));
+      if (snap.exists()) {
+        const imgs = snapToArray(snap);
+        let reportsMap = {};
+        try {
+          const rSnap = await get(ref(db, `clients/${c.id}/reports`));
+          if (rSnap.exists()) reportsMap = rSnap.val();
+        } catch(e){}
+
+        imgs.forEach(img => {
+          const reportCount = reportsMap[img.id]?.count || 0;
+          saAllImages.push({
+            ...img,
+            clientId: c.id,
+            clientName: c.name || c.username,
+            reportCount
+          });
+        });
+      }
+    } catch(e) {}
+  }
+  saRenderAllGalleries();
+}
+
+function saRenderAllGalleries() {
+  const grid = document.getElementById('sa-all-galleries-grid');
+  if (!grid) return;
+
+  const filterCid = document.getElementById('sa-ag-client-filter')?.value || '';
+  const filtered = filterCid ? saAllImages.filter(img => img.clientId === filterCid) : saAllImages;
+
+  if (!filtered.length) {
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="eic">🖼️</div>No images found</div>';
+    return;
+  }
+
+  grid.innerHTML = filtered.map(img => {
+    const thumb = img.thumbnailUrl || img.thumb || img.thumbnail || img.url || img.highResUrl || img.hires || '';
+    return `
+      <div style="background:var(--s1);border:1px solid var(--br);border-radius:12px;overflow:hidden;display:flex;flex-direction:column">
+        <div style="position:relative">
+          <img src="${escapeHTML(thumb)}" style="width:100%;height:140px;object-fit:cover;display:block" onerror="this.style.display='none'"/>
+          <span class="tag blu" style="position:absolute;top:6px;left:6px;font-size:10px;background:rgba(0,0,0,0.75)">${escapeHTML(img.clientName)}</span>
+        </div>
+        <div style="padding:10px;flex:1;display:flex;flex-direction:column;justify-content:space-between">
+          <div>
+            <div style="font-weight:700;font-size:12px;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHTML(img.title || img.id || '—')}</div>
+            <div style="display:flex;gap:8px;font-size:11px;color:var(--mu);margin-bottom:8px">
+              <span>👁 ${(img.views || 0).toLocaleString()}</span>
+              ${img.reportCount ? `<span style="color:var(--red);font-weight:700">🚨 ${img.reportCount}</span>` : ''}
+            </div>
+          </div>
+          <button class="btn btn-d btn-xs" style="width:100%" onclick="saDeleteGalleryImage('${escapeHTML(img.clientId)}', '${escapeHTML(img.id)}')">🗑 Delete</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function saDeleteGalleryImage(clientId, imageId) {
+  if (!confirm('Delete this image from client gallery?')) return;
+  try {
+    await remove(ref(db, `clients/${clientId}/images/${imageId}`));
+    try {
+      const countRef = ref(db, `superAdmin/clients/${clientId}/imageCount`);
+      const snap = await get(countRef);
+      if (snap.exists() && snap.val() > 0) {
+        await set(countRef, snap.val() - 1);
+      }
+    } catch(e) {}
+
+    saAllImages = saAllImages.filter(i => !(i.clientId === clientId && i.id === imageId));
+    saRenderAllGalleries();
+    toast('Image deleted successfully');
+    saAddLog('del', `Deleted image "${imageId}" from client "${clientId}"`);
+  } catch(e) {
+    toast('❌ ' + e.message, 'err');
+  }
+}
+
+// ── EXPOSE WINDOW GLOBALS ──────────────────────────────────────────────
+window.saInitReports = saInitReports;
+window.saMarkReportReviewed = saMarkReportReviewed;
+window.saRemoveReportedImage = saRemoveReportedImage;
+window.saDismissReport = saDismissReport;
+window.clInitReports = clInitReports;
+window.saInitAllGalleries = saInitAllGalleries;
+window.saDeleteGalleryImage = saDeleteGalleryImage;
 
 // ── INIT ───────────────────────────────────────────────────────────────
 document.getElementById('sa-nb-log').textContent = saActLog.length;
