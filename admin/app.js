@@ -213,15 +213,15 @@ async function handleRoute(user) {
 
       if (!client) {
         await signOut(auth);
-        showErr(`❌ Access denied. Account "${email}" is not registered.`);
+        showErr('❌ Account not found');
         resetGBtn();
         document.getElementById('g-btn').style.display = 'flex';
         setupLoginUI(route);
         return;
       }
-      if (client.status !== 'active') {
+      if (client.status === 'deleted' || client.status !== 'active' || client.active === false) {
         await signOut(auth);
-        showErr('❌ Your account is inactive. Contact admin.');
+        showErr('❌ Account suspended');
         resetGBtn();
         document.getElementById('g-btn').style.display = 'flex';
         setupLoginUI(route);
@@ -276,40 +276,27 @@ async function handleRoute(user) {
     }
 
     if (!client) {
-      try {
-        const snap = await get(ref(db, `clients/${username}/info`));
-        if (snap.exists()) client = snap.val();
-      } catch (err) {
-        console.warn("Could not fetch client info directly:", err);
-      }
+      await signOut(auth);
+      showView('login');
+      showErr('❌ Account not found');
+      resetGBtn();
+      document.getElementById('g-btn').style.display = 'flex';
+      return;
     }
 
-    if (!client) {
-      if (email === OWNER) {
-        client = { id: username, name: username, username, googleEmail: email, status: 'active', earningPercent: 40 };
-      } else {
-        await signOut(auth);
-        showView('login');
-        showErr(`❌ Username "${username}" not found.`);
-        resetGBtn();
-        document.getElementById('g-btn').style.display = 'flex';
-        return;
-      }
+    if (client.status === 'deleted' || client.status !== 'active' || client.active === false) {
+      await signOut(auth);
+      showView('login');
+      showErr('❌ Account suspended');
+      resetGBtn();
+      document.getElementById('g-btn').style.display = 'flex';
+      return;
     }
 
     if (email !== OWNER && client.googleEmail && client.googleEmail.toLowerCase() !== email) {
       await signOut(auth);
       showView('login');
       showErr(`❌ Access denied. This panel is for ${client.googleEmail}`);
-      resetGBtn();
-      document.getElementById('g-btn').style.display = 'flex';
-      return;
-    }
-
-    if (email !== OWNER && client.status !== 'active') {
-      await signOut(auth);
-      showView('login');
-      showErr('❌ Your account is inactive. Contact admin.');
       resetGBtn();
       document.getElementById('g-btn').style.display = 'flex';
       return;
@@ -1231,14 +1218,107 @@ document.getElementById('sa-cm-save').addEventListener('click', async () => {
   }
 });
 
-async function saDeleteClient(id, name) {
-  if(!confirm(`Delete client "${name}"?`)) return;
+async function deleteClientGitHubFile(username) {
+  if (!username) return;
+  const token  = localStorage.getItem('mnx_gh_token') || '';
+  const repo   = 'pikavika77/moonlightx';
+  const branch = 'main';
+  const path   = `clients/${username}/index.html`;
+  const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}`;
+
+  if (!token) return; // silently skip if no token
+
+  const headers = {
+    'Authorization': `Bearer ${token}`,
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28'
+  };
+
   try {
-    await remove(ref(db, `superAdmin/clients/${id}`));
-    try { await remove(ref(db, `clients/${id}/info`)); } catch(e){}
-    saAddLog('del', `Deleted client: "${name}"`);
-    toast('🗑️ Client deleted');
-  } catch(e) { toast('❌ '+e.message,'err'); }
+    // Get SHA first
+    const getRes = await fetch(`${apiUrl}?ref=${branch}`, { headers });
+    if (!getRes.ok) return; // file doesn't exist, skip
+
+    const fileData = await getRes.json();
+    const sha = fileData.sha;
+
+    // Delete the file
+    await fetch(apiUrl, {
+      method: 'DELETE',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: `Remove client: ${username}`,
+        sha,
+        branch
+      })
+    });
+  } catch(e) {
+    console.warn('Error deleting client GitHub file:', e);
+  }
+}
+
+function saDeleteClient(id, name) {
+  const client = saClients.find(c => c.id === id);
+  const clientName = name || client?.name || 'Client';
+  const username = client?.username || '';
+
+  const existingModal = document.getElementById('sa-delete-confirm-modal');
+  if (existingModal) existingModal.remove();
+
+  const overlay = document.createElement('div');
+  overlay.className = 'overlay';
+  overlay.id = 'sa-delete-confirm-modal';
+  overlay.style.display = 'flex';
+
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:480px">
+      <h2 style="color:var(--red);margin-bottom:12px">🗑️ Delete Client</h2>
+      <div style="font-size:13px;line-height:1.6;margin-bottom:16px;color:var(--tx)">
+        Are you sure you want to delete <strong style="color:var(--red);font-size:15px">${escapeHTML(clientName)}</strong>?<br><br>
+        This will permanently delete:
+        <ul style="margin:10px 0 10px 20px;color:var(--mu);line-height:1.8">
+          <li>Their admin panel access</li>
+          <li>All their gallery images</li>
+          <li>All their categories</li>
+          <li>All their earnings data</li>
+        </ul>
+        <strong style="color:var(--red)">This action CANNOT be undone.</strong>
+      </div>
+      <div class="mfoot">
+        <button class="btn btn-g" id="sa-del-cancel">Cancel</button>
+        <button class="btn btn-d" id="sa-del-confirm">Delete Permanently</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  document.getElementById('sa-del-cancel').addEventListener('click', () => {
+    overlay.remove();
+  });
+
+  document.getElementById('sa-del-confirm').addEventListener('click', async () => {
+    const btn = document.getElementById('sa-del-confirm');
+    btn.disabled = true;
+    btn.textContent = '⏳ Deleting...';
+
+    try {
+      await remove(ref(db, `superAdmin/clients/${id}`));
+      try { await remove(ref(db, `clients/${id}`)); } catch(e){}
+
+      if (username) {
+        await deleteClientGitHubFile(username);
+      }
+
+      saAddLog('del', `Deleted client: "${clientName}"`);
+      toast('🗑️ Client deleted');
+      overlay.remove();
+    } catch(e) {
+      toast('❌ ' + e.message, 'err');
+      btn.disabled = false;
+      btn.textContent = 'Delete Permanently';
+    }
+  });
 }
 
 // REVENUE
