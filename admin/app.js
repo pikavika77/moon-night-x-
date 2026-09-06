@@ -750,19 +750,21 @@ async function generateClientSiteHTML(clientId) {
   return `<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>${name.replace(/</g,'&lt;')} — Premium 18+ Gallery</title>
   <link rel="icon" type="image/png" href="https://moonlightx.qd.je/favicon.png">
   <meta name="description" content="${name.replace(/"/g,'&quot;')} – premium curated 18+ adult gallery. Fast, mobile-first platform with HD photography. Adults 18+ only.">
-  <meta name="robots" content="noindex, nofollow">
+  <meta name="robots" content="noindex,nofollow">
   <meta name="theme-color" content="#050505">
   <link rel="stylesheet" href="https://moonlightx.qd.je/app.css">
-
-  <!-- POPUNDER placeholder -->
+</head>
+<body>
+  <!-- popunder slot MUST be in body, not head -->
   <div id="mlx-popunder-slot"></div>
+  <div id="root"></div>
 
-  <!-- STEP 1: Globals synchronously set BEFORE app.js loads -->
+  <!-- STEP 1: Set globals synchronously -->
   <script>
     var hash = window.location.hash || '';
     var parts = hash.split('/');
@@ -775,7 +777,7 @@ async function generateClientSiteHTML(clientId) {
     window.__mlxCatPath    = 'clients/${id}/categories';
     window.__mlxClientId   = ${esc(id)};
     window.__mlxClientName = ${esc(name)};
-    window.__mlxProfile = {
+    window.__mlxProfile    = {
       bio:       ${esc(bio)},
       avatar:    ${esc(avatar)},
       instagram: ${esc(instagram)},
@@ -792,10 +794,70 @@ async function generateClientSiteHTML(clientId) {
     document.title = window.__mlxClientName + ' — Premium 18+ Gallery';
   <\/script>
 
-  <!-- STEP 2: Firebase async — live profile + visit tracking -->
+  <!-- STEP 2: Load React app WITH globals already set -->
+  <script src="https://moonlightx.qd.je/app.js"><\/script>
+
+  <!-- STEP 3: Inject ads AFTER app.js loaded -->
+  <script>
+    (function() {
+      function execScripts(el) {
+        el.querySelectorAll('script').forEach(function(old) {
+          var s = document.createElement('script');
+          if (old.src) { s.src = old.src; s.async = true; }
+          else { s.textContent = old.textContent; }
+          old.parentNode.replaceChild(s, old);
+        });
+      }
+
+      // Inject popunder immediately
+      var popSlot = document.getElementById('mlx-popunder-slot');
+      if (popSlot && window.__mlxAds.popunder) {
+        popSlot.innerHTML = window.__mlxAds.popunder;
+        execScripts(popSlot);
+      }
+
+      // Inject banner/box ads using MutationObserver
+      var SLOTS = {
+        'adsterra-top-leaderboard':    window.__mlxAds.banner728,
+        'adsterra-native-incontent':   window.__mlxAds.box300,
+        'adsterra-sidebar-skyscraper': window.__mlxAds.smart,
+        'adsterra-mobile-sticky':      window.__mlxAds.banner320,
+        'adsterra-bottom-footer':      window.__mlxAds.banner728
+      };
+
+      var done = {};
+      var total = Object.values(SLOTS).filter(Boolean).length;
+      if (total === 0) return;
+
+      // Try immediately first
+      Object.keys(SLOTS).forEach(function(id) {
+        if (!SLOTS[id] || done[id]) return;
+        var el = document.getElementById(id);
+        if (el) { el.innerHTML = SLOTS[id]; execScripts(el); done[id] = true; }
+      });
+
+      if (Object.keys(done).length >= total) return;
+
+      // Then watch for React to create remaining slots
+      var obs = new MutationObserver(function() {
+        Object.keys(SLOTS).forEach(function(id) {
+          if (!SLOTS[id] || done[id]) return;
+          var el = document.getElementById(id);
+          if (el) { el.innerHTML = SLOTS[id]; execScripts(el); done[id] = true; }
+        });
+        if (Object.keys(done).length >= total) obs.disconnect();
+      });
+      obs.observe(document.body, { childList: true, subtree: true });
+      setTimeout(function() { obs.disconnect(); }, 30000);
+    })();
+  <\/script>
+
+  <!-- STEP 4: Firebase async — live profile + visit tracking -->
   <script type="module">
-    import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-    import { getDatabase, ref, get, update, set }   from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
+    import { initializeApp, getApps, getApp }
+      from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+    import { getDatabase, ref, get, update, set }
+      from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
 
     const FB = {
       apiKey:            "AIzaSyACW8aFQmlaoaxNtE55m8Pck6H8BRlfEbs",
@@ -833,7 +895,7 @@ async function generateClientSiteHTML(clientId) {
       } catch(e) {}
     };
 
-    /* Live profile update from Firebase */
+    // Live profile update
     try {
       const pSnap = await get(ref(db, 'clients/${id}/info/profile'));
       if (pSnap.exists()) {
@@ -851,52 +913,7 @@ async function generateClientSiteHTML(clientId) {
       }
     } catch(e) {}
 
-    /* ── Execute scripts injected via innerHTML ── */
-    function execScriptsIn(el) {
-      el.querySelectorAll('script').forEach(old => {
-        const s = document.createElement('script');
-        if (old.src) { s.src = old.src; s.async = true; }
-        else { s.textContent = old.textContent; }
-        old.parentNode.replaceChild(s, old);
-      });
-    }
-
-    /* ── Inject popunder ── */
-    function injectPopunder(code) {
-      if (!code) return;
-      const div = document.getElementById('mlx-popunder-slot');
-      if (div) { div.innerHTML = code; execScriptsIn(div); }
-    }
-
-    /* ── Inject banner/box ads into React ad slots ── */
-    function injectBannerAds(ads) {
-      if (!ads) return;
-      const SLOT_MAP = {
-        'adsterra-top-leaderboard':    window.__mlxAds.banner728 || '',
-        'adsterra-native-incontent':   window.__mlxAds.box300    || '',
-        'adsterra-sidebar-skyscraper': window.__mlxAds.smart     || '',
-        'adsterra-mobile-sticky':      window.__mlxAds.banner320 || '',
-        'adsterra-bottom-footer':      window.__mlxAds.banner728 || ''
-      };
-      const injected   = new Set();
-      const totalSlots = Object.values(SLOT_MAP).filter(Boolean).length;
-      if (totalSlots === 0) return;
-      const obs = new MutationObserver(() => {
-        Object.entries(SLOT_MAP).forEach(([sid, code]) => {
-          if (!code || injected.has(sid)) return;
-          const el = document.getElementById(sid);
-          if (el) { el.innerHTML = code; el.dataset.injected = 'true'; execScriptsIn(el); injected.add(sid); }
-        });
-        if (injected.size >= totalSlots) obs.disconnect();
-      });
-      obs.observe(document.body, { childList: true, subtree: true });
-      setTimeout(() => obs.disconnect(), 25000);
-    }
-
-    injectPopunder(window.__mlxAds.popunder);
-    injectBannerAds(window.__mlxAds);
-
-    /* ── Visit tracking ── */
+    // Visit tracking
     try {
       const today   = new Date().toISOString().slice(0, 10);
       const infoRef = ref(db, 'clients/${id}/info');
@@ -907,13 +924,8 @@ async function generateClientSiteHTML(clientId) {
       else { upd.todayVisits = 1; upd.todayKey = today; }
       await update(infoRef, upd);
       await update(ref(db, 'superAdmin/clients/${id}'), upd).catch(() => {});
-    } catch(e) { console.warn('Visit track:', e.message); }
-
+    } catch(e) {}
   <\/script>
-</head>
-<body>
-  <div id="root"></div>
-  <script src="https://moonlightx.qd.je/app.js"><\/script>
 </body>
 </html>`;
 }
@@ -934,21 +946,9 @@ function saShowShareModal(clientId) {
   const pathHint = document.getElementById('sm-path-hint');
   if (pathHint) pathHint.textContent = `clients/${c.username}/index.html`;
 
-  // Show deployed URL if already deployed
+  // Hide deployed URL section completely in share modal
   const depSection = document.getElementById('sm-deployed-section');
-  const depUrl     = document.getElementById('sm-deployed-url');
-  if (c.deployedUrl) {
-    depSection.style.display = 'block';
-    depUrl.textContent       = c.deployedUrl;
-    document.getElementById('sm-copy-deployed').onclick = () => {
-      navigator.clipboard.writeText(c.deployedUrl);
-      document.getElementById('sm-copy-deployed').textContent = '✅ Copied!';
-      setTimeout(() => document.getElementById('sm-copy-deployed').textContent = '📋 Copy', 2000);
-    };
-    document.getElementById('sm-open-deployed').onclick = () => window.open(c.deployedUrl, '_blank');
-  } else {
-    depSection.style.display = 'none';
-  }
+  if (depSection) depSection.style.display = 'none';
 
   document.getElementById('sm-copy-admin').onclick = () => {
     navigator.clipboard.writeText(adminUrl);
@@ -1033,19 +1033,6 @@ document.getElementById('sm-deploy-github').addEventListener('click', async () =
       <strong>Live URL:</strong> <a href="${deployedUrl}" target="_blank"
         style="color:#4ade80;word-break:break-all">${deployedUrl}</a><br>
       <span style="color:var(--mu);font-size:10px">GitHub Pages pe 1-2 min mein live hoga.</span>`;
-    // Show deployed section in modal
-    const depSection = document.getElementById('sm-deployed-section');
-    const depUrl     = document.getElementById('sm-deployed-url');
-    if (depSection && depUrl) {
-      depSection.style.display = 'block';
-      depUrl.textContent       = deployedUrl;
-      document.getElementById('sm-copy-deployed').onclick = () => {
-        navigator.clipboard.writeText(deployedUrl);
-        document.getElementById('sm-copy-deployed').textContent = '✅ Copied!';
-        setTimeout(() => document.getElementById('sm-copy-deployed').textContent = '📋 Copy', 2000);
-      };
-      document.getElementById('sm-open-deployed').onclick = () => window.open(deployedUrl, '_blank');
-    }
     toast('✅ Deployed! ' + deployedUrl);
     saAddLog('add', `Deployed "${c?.name}" to GitHub: ${deployedUrl}`);
   } catch(e) {
