@@ -799,56 +799,82 @@ async function generateClientSiteHTML(clientId) {
 
   <!-- STEP 3: Inject ads AFTER app.js loaded -->
   <script>
-    (function() {
-      function execScripts(el) {
-        el.querySelectorAll('script').forEach(function(old) {
+    (function waitForAds() {
+      var ads = window.__mlxAds || {};
+
+      // Helper: re-execute scripts inside an element
+      function runScripts(el) {
+        var scripts = el.querySelectorAll('script');
+        for (var i = 0; i < scripts.length; i++) {
+          var orig = scripts[i];
           var s = document.createElement('script');
-          if (old.src) { s.src = old.src; s.async = true; }
-          else { s.textContent = old.textContent; }
-          old.parentNode.replaceChild(s, old);
-        });
+          if (orig.src) {
+            s.src = orig.src;
+            s.async = false;
+          } else {
+            s.textContent = orig.textContent;
+          }
+          orig.parentNode.replaceChild(s, orig);
+        }
       }
 
-      // Inject popunder immediately
-      var popSlot = document.getElementById('mlx-popunder-slot');
-      if (popSlot && window.__mlxAds.popunder) {
-        popSlot.innerHTML = window.__mlxAds.popunder;
-        execScripts(popSlot);
+      // Helper: inject ad into a slot
+      function inject(slotId, code) {
+        if (!code || !code.trim()) return false;
+        var el = document.getElementById(slotId);
+        if (!el) return false;
+        if (el.dataset.adInjected === '1') return true;
+        el.innerHTML = code;
+        el.dataset.adInjected = '1';
+        runScripts(el);
+        return true;
       }
 
-      // Inject banner/box ads using MutationObserver
-      var SLOTS = {
-        'adsterra-top-leaderboard':    window.__mlxAds.banner728,
-        'adsterra-native-incontent':   window.__mlxAds.box300,
-        'adsterra-sidebar-skyscraper': window.__mlxAds.smart,
-        'adsterra-mobile-sticky':      window.__mlxAds.banner320,
-        'adsterra-bottom-footer':      window.__mlxAds.banner728
-      };
+      // Slot map
+      var SLOTS = [
+        { id: 'mlx-popunder-slot',           code: ads.popunder  },
+        { id: 'adsterra-top-leaderboard',    code: ads.banner728 },
+        { id: 'adsterra-native-incontent',   code: ads.box300    },
+        { id: 'adsterra-sidebar-skyscraper', code: ads.smart     },
+        { id: 'adsterra-mobile-sticky',      code: ads.banner320 },
+        { id: 'adsterra-bottom-footer',      code: ads.banner728 }
+      ];
 
-      var done = {};
-      var total = Object.values(SLOTS).filter(Boolean).length;
-      if (total === 0) return;
+      // Try injecting all slots immediately
+      var pending = [];
+      for (var i = 0; i < SLOTS.length; i++) {
+        if (!inject(SLOTS[i].id, SLOTS[i].code)) {
+          if (SLOTS[i].code && SLOTS[i].code.trim()) {
+            pending.push(SLOTS[i]);
+          }
+        }
+      }
 
-      // Try immediately first
-      Object.keys(SLOTS).forEach(function(id) {
-        if (!SLOTS[id] || done[id]) return;
-        var el = document.getElementById(id);
-        if (el) { el.innerHTML = SLOTS[id]; execScripts(el); done[id] = true; }
+      // If any slots still pending, watch DOM for them
+      if (pending.length === 0) return;
+
+      var observer = new MutationObserver(function() {
+        var stillPending = [];
+        for (var i = 0; i < pending.length; i++) {
+          if (!inject(pending[i].id, pending[i].code)) {
+            stillPending.push(pending[i]);
+          }
+        }
+        pending = stillPending;
+        if (pending.length === 0) {
+          observer.disconnect();
+        }
       });
 
-      if (Object.keys(done).length >= total) return;
-
-      // Then watch for React to create remaining slots
-      var obs = new MutationObserver(function() {
-        Object.keys(SLOTS).forEach(function(id) {
-          if (!SLOTS[id] || done[id]) return;
-          var el = document.getElementById(id);
-          if (el) { el.innerHTML = SLOTS[id]; execScripts(el); done[id] = true; }
-        });
-        if (Object.keys(done).length >= total) obs.disconnect();
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true
       });
-      obs.observe(document.body, { childList: true, subtree: true });
-      setTimeout(function() { obs.disconnect(); }, 30000);
+
+      // Stop after 60 seconds
+      setTimeout(function() {
+        observer.disconnect();
+      }, 60000);
     })();
   <\/script>
 
