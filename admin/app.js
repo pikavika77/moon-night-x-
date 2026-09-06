@@ -500,6 +500,7 @@ function saInitDB() {
 
 // ── GLOBAL SITE GALLERY & ADS ────────────────────────────────────────────
 let globalImages = [], globalSiteCats = [];
+let saEditGlobalImgId = null;
 let _globalSiteListening = false; // guard: prevents duplicate onValue listeners
 
 function saInitGlobalSite() {
@@ -541,17 +542,70 @@ function saInitGlobalSite() {
   }).catch(() => {});
 }
 
+function saOpenAddGlobalImg() {
+  saEditGlobalImgId = null;
+  ['sa-gadd-title','sa-gadd-thumb','sa-gadd-hires','sa-gadd-watch','sa-gadd-download','sa-gadd-desc'].forEach(k => {
+    const e = document.getElementById(k);
+    if (e) e.value = '';
+  });
+  const cat = document.getElementById('sa-gadd-cat');
+  if (cat) cat.value = 'general';
+  const titleEl = document.getElementById('sa-gmodal-title');
+  if (titleEl) titleEl.textContent = '🖼️ Add Image to Site Gallery';
+  const btnEl = document.getElementById('sa-gmodal-btn');
+  if (btnEl) btnEl.textContent = '✅ Add Image';
+  document.getElementById('sa-global-add-modal').style.display = 'flex';
+}
+
+function saOpenEditGlobalImg(id) {
+  const img = globalImages.find(i => i.id === id);
+  if (!img) return;
+  saEditGlobalImgId = id;
+  const titleEl = document.getElementById('sa-gmodal-title');
+  if (titleEl) titleEl.textContent = '✏️ Edit Site Image';
+  const btnEl = document.getElementById('sa-gmodal-btn');
+  if (btnEl) btnEl.textContent = '💾 Update Image';
+
+  const fieldMap = {
+    'sa-gadd-title':    img.title || '',
+    'sa-gadd-thumb':    img.thumb || img.thumbnailUrl || img.thumbnail || img.url || '',
+    'sa-gadd-hires':    img.hires || img.highResUrl || '',
+    'sa-gadd-watch':    img.watchUrl || '',
+    'sa-gadd-download': img.downloadUrl || '',
+    'sa-gadd-cat':      img.category || 'general',
+    'sa-gadd-desc':     img.description || ''
+  };
+  Object.entries(fieldMap).forEach(([fieldId, val]) => {
+    const el = document.getElementById(fieldId);
+    if (el) el.value = val;
+  });
+
+  document.getElementById('sa-global-add-modal').style.display = 'flex';
+}
+
 function saRenderGlobalGallery() {
   const el = document.getElementById('sa-global-img-grid');
   if (!el) return;
   el.innerHTML = globalImages.length
     ? globalImages.map(img => `
-      <div style="background:var(--s1);border:1px solid var(--br);border-radius:12px;overflow:hidden">
-        <img src="${escapeHTML(img.thumb||img.thumbnail||img.url||'')}" style="width:100%;height:130px;object-fit:cover;display:block" onerror="this.style.display='none'"/>
-        <div style="padding:8px 10px">
-          <div style="font-weight:700;font-size:11px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHTML(img.title||img.id||'—')}</div>
-          <div style="font-size:10px;color:var(--mu);margin-bottom:6px">${escapeHTML(img.category||'general')}</div>
-          <button class="btn btn-d btn-xs" style="width:100%" onclick="saDelGlobalImg('${escapeHTML(img.id)}')">🗑 Delete</button>
+      <div style="background:var(--s1);border:1px solid var(--br);border-radius:12px;overflow:hidden;display:flex;flex-direction:column">
+        <img src="${escapeHTML(img.thumb||img.thumbnailUrl||img.thumbnail||img.url||'')}" style="width:100%;height:130px;object-fit:cover;display:block" onerror="this.style.display='none'"/>
+        <div style="padding:10px;flex:1;display:flex;flex-direction:column;justify-content:space-between">
+          <div>
+            <div style="font-weight:700;font-size:11px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHTML(img.title||img.id||'—')}</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:4px;margin-bottom:6px">
+              <span class="tag cat" style="font-size:10px">${escapeHTML(img.category||'general')}</span>
+              <span style="font-size:10px;color:var(--mu)">👁 ${(img.views||0).toLocaleString()}</span>
+            </div>
+            <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+              ${img.watchUrl ? '<span class="tag grn" style="font-size:9px" title="Watch Now link set">🎬 Watch</span>' : ''}
+              ${img.downloadUrl ? '<span class="tag blu" style="font-size:9px" title="Download link set">⬇️ Download</span>' : ''}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:6px">
+            <button class="btn btn-g btn-xs" style="flex:1;justify-content:center" onclick="saOpenEditGlobalImg('${escapeHTML(img.id)}')">✏️ Edit</button>
+            <button class="btn btn-d btn-xs" style="flex:1;justify-content:center" onclick="saDelGlobalImg('${escapeHTML(img.id)}')">🗑 Delete</button>
+          </div>
         </div>
       </div>`).join('')
     : '<div class="empty" style="grid-column:1/-1"><div class="eic">🖼️</div>Koi image nahi — "Add Image" se add karo</div>';
@@ -587,20 +641,47 @@ async function saAddGlobalImg() {
   const downloadUrl = document.getElementById('sa-gadd-download')?.value.trim()||'';
   const cat      = document.getElementById('sa-gadd-cat')?.value||'general';
   const desc     = document.getElementById('sa-gadd-desc')?.value.trim()||'';
+
   if (!title||!thumb) { toast('⚠️ Title aur Thumbnail URL zaroori hain!','warn'); return; }
-  const id = 'img-' + Date.now();
+
+  const isEdit = !!saEditGlobalImgId;
+  const existing = isEdit ? globalImages.find(i => i.id === saEditGlobalImgId) : null;
+  const id = isEdit ? saEditGlobalImgId : ('img-' + Date.now());
+  const createdAt = existing?.createdAt || new Date().toISOString();
+  const views = existing?.views || 0;
+
+  const data = {
+    id,
+    title,
+    thumb,
+    thumbnail: thumb,
+    hires: hires || thumb,
+    url: thumb,
+    watchUrl,
+    downloadUrl,
+    category: cat,
+    description: desc,
+    createdAt,
+    views
+  };
+
   try {
-    await set(ref(db, `globalSite/images/${id}`), { id, title, thumb, thumbnail:thumb, hires:hires||thumb, url:thumb, watchUrl, downloadUrl, category:cat, description:desc, createdAt:new Date().toISOString() });
+    await set(ref(db, `globalSite/images/${id}`), data);
     ['sa-gadd-title','sa-gadd-thumb','sa-gadd-hires','sa-gadd-watch','sa-gadd-download','sa-gadd-desc'].forEach(k => { const e=document.getElementById(k); if(e) e.value=''; });
+    saEditGlobalImgId = null;
     document.getElementById('sa-global-add-modal').style.display='none';
-    toast('✅ Image add ho gayi!');
-    saAddLog('add','Global site image added: '+title);
+    toast(isEdit ? '✅ Image update ho gayi!' : '✅ Image add ho gayi!');
+    saAddLog(isEdit ? 'edit' : 'add', (isEdit ? 'Updated' : 'Added') + ' global site image: ' + title);
   } catch(e) { toast('❌ '+e.message,'err'); }
 }
 
 async function saDelGlobalImg(id) {
   if (!confirm('Yeh image delete karein?')) return;
-  try { await remove(ref(db, `globalSite/images/${id}`)); toast('✅ Deleted!'); } catch(e) { toast('❌ '+e.message,'err'); }
+  try {
+    await remove(ref(db, `globalSite/images/${id}`));
+    toast('✅ Deleted!');
+    saAddLog('del', 'Deleted global site image: ' + id);
+  } catch(e) { toast('❌ '+e.message,'err'); }
 }
 
 async function saAddGlobalCat() {
@@ -2346,6 +2427,16 @@ window.saDismissReport = saDismissReport;
 window.clInitReports = clInitReports;
 window.saInitAllGalleries = saInitAllGalleries;
 window.saDeleteGalleryImage = saDeleteGalleryImage;
+
+window.saOpenAddGlobalImg = saOpenAddGlobalImg;
+window.saOpenEditGlobalImg = saOpenEditGlobalImg;
+window.saAddGlobalImg = saAddGlobalImg;
+window.saSaveGlobalImg = saAddGlobalImg;
+window.saDelGlobalImg = saDelGlobalImg;
+window.saAddGlobalCat = saAddGlobalCat;
+window.saDelGlobalCat = saDelGlobalCat;
+window.saSaveGlobalAds = saSaveGlobalAds;
+window.saSaveSiteProfile = saSaveSiteProfile;
 
 // ── INIT ───────────────────────────────────────────────────────────────
 document.getElementById('sa-nb-log').textContent = saActLog.length;
