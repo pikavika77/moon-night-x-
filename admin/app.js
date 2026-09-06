@@ -764,6 +764,7 @@ async function generateClientSiteHTML(clientId) {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>${name.replace(/</g,'&lt;')} — Premium 18+ Gallery</title>
+  <link rel="icon" type="image/png" href="https://moonlightx.qd.je/favicon.png">
   <meta name="description" content="${name.replace(/"/g,'&quot;')} – premium curated 18+ adult gallery. Fast, mobile-first platform with HD photography. Adults 18+ only.">
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#050505">
