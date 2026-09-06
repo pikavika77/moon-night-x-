@@ -18,27 +18,55 @@
 
   <!-- STEP 1: Globals synchronously set BEFORE app.js loads -->
   <script>
-    window.__mlxImgPath    = 'globalSite/images';
-    window.__mlxCatPath    = 'globalSite/categories';
-    window.__mlxClientId   = 'global';
-    window.__mlxClientName = 'Moon Light X';
-    window.__mlxProfile = {
-      bio: '',
-      avatar: '',
-      instagram: '',
-      telegram: '',
-      socialLinks: { instagram: '', telegram: '' }
-    };
-    window.__mlxAds = {
-      popunder:  '',
-      banner728: '',
-      banner320: '',
-      box300:    '',
-      smart:     ''
-    };
-  </script>
+    (function() {
+      function getUsernameFromHash() {
+        var hash = (window.location.hash || '').replace(/^#\/?/, '');
+        var parts = hash.split('/').filter(Boolean);
+        if (!parts.length || parts[0] === 'admin' || parts[0] === 'super') return null;
+        return parts[0];
+      }
 
-  <!-- STEP 2: Firebase async — live data update after React mounts -->
+      var username = getUsernameFromHash();
+      if (username) {
+        var cachedCid = null;
+        try { cachedCid = localStorage.getItem('mnx_client_id_' + username); } catch(e){}
+        var cid = cachedCid || username;
+        window.__mlxImgPath    = 'clients/' + cid + '/images';
+        window.__mlxCatPath    = 'clients/' + cid + '/categories';
+        window.__mlxClientId   = cid;
+        window.__mlxClientName = username;
+      } else {
+        window.__mlxImgPath    = 'globalSite/images';
+        window.__mlxCatPath    = 'globalSite/categories';
+        window.__mlxClientId   = 'global';
+        window.__mlxClientName = 'Moon Light X';
+      }
+
+      window.__mlxProfile = {
+        bio: '',
+        avatar: '',
+        instagram: '',
+        telegram: '',
+        socialLinks: { instagram: '', telegram: '' }
+      };
+
+      window.__mlxAds = {
+        popunder:  '',
+        banner728: '',
+        banner320: '',
+        box300:    '',
+        smart:     ''
+      };
+    })();
+  </script>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- STEP 2: app.js loads HERE after DOM root exists and globals are synchronously set -->
+  <script src="./app.js"></script>
+
+  <!-- STEP 3: Firebase async — live ads, profile updates, client resolution & visit tracking -->
   <script type="module">
     import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
     import { getDatabase, ref, get, update }   from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
@@ -53,7 +81,6 @@
       appId:             "1:779934381788:web:1426fa035171015634a619"
     };
 
-    /* FIX 1: Firebase init ONCE — pehle har hashchange pe crash hota tha */
     const fbApp = getApps().length ? getApp() : initializeApp(FB);
     const db    = getDatabase(fbApp);
 
@@ -108,7 +135,7 @@
         'adsterra-mobile-sticky':      ads.banner320 || '',
         'adsterra-bottom-footer':      ads.banner728 || ''
       };
-      const injected  = new Set();
+      const injected   = new Set();
       const totalSlots = Object.values(SLOT_MAP).filter(Boolean).length;
       if (totalSlots === 0) return;
       const obs = new MutationObserver(() => {
@@ -123,7 +150,7 @@
       setTimeout(() => obs.disconnect(), 25000);
     }
 
-    /* ── Main client resolver ── */
+    /* ── Main client resolver (runs after React mounted for live ads, title, profile, visit tracking) ── */
     async function resolveClient() {
       const username = getUsernameFromHash();
 
@@ -149,8 +176,8 @@
             smart:     ads.smart     || ''
           };
           window.__mlxProfile = {
-            bio:    prof.bio    || '',
-            avatar: prof.avatar || '',
+            bio:       prof.bio    || '',
+            avatar:    prof.avatar || '',
             instagram: '',
             telegram:  '',
             socialLinks: { instagram: '', telegram: '' }
@@ -163,8 +190,6 @@
           injectBannerAds(window.__mlxAds);
         } catch(e) {
           console.warn('Global site data load error:', e);
-          window.__mlxAds     = {};
-          window.__mlxProfile = {};
         }
         return;
       }
@@ -188,13 +213,14 @@
         if (client && client.id) {
           const cid = client.id;
 
+          try { localStorage.setItem('mnx_client_id_' + username, cid); } catch(e){}
+
           window.__mlxImgPath    = `clients/${cid}/images`;
           window.__mlxCatPath    = `clients/${cid}/categories`;
           window.__mlxClientId   = cid;
           window.__mlxClientName = client.name || 'Moon Light X';
           if (client.name) document.title = `${client.name} — Premium 18+ Gallery`;
 
-          /* FIX 2: Profile fetch from correct path — pehle client.profile padhta tha jo kabhi save nahi hota */
           let p = {};
           try {
             const pSnap = await get(ref(db, `clients/${cid}/info/profile`));
@@ -212,7 +238,6 @@
             }
           };
 
-          // Load ads from correct Firebase path
           let ads = {};
           try {
             const adsSnap = await get(ref(db, `clients/${cid}/info/ads`));
@@ -229,33 +254,17 @@
           trackVisit(cid);
           injectPopunder(window.__mlxAds.popunder);
           injectBannerAds(window.__mlxAds);
-
-        } else {
-          window.__mlxImgPath    = 'globalSite/images';
-          window.__mlxCatPath    = 'globalSite/categories';
-          window.__mlxClientId   = 'global';
-          window.__mlxClientName = 'Moon Light X';
-          window.__mlxProfile    = {};
-          window.__mlxAds        = {};
         }
       } catch(e) {
         console.warn('Resolver error:', e);
-        window.__mlxImgPath    = 'globalSite/images';
-        window.__mlxCatPath    = 'globalSite/categories';
-        window.__mlxClientId   = 'global';
-        window.__mlxClientName = 'Moon Light X';
-        window.__mlxProfile    = {};
-        window.__mlxAds        = {};
       }
     }
 
-    window.addEventListener('hashchange', () => resolveClient().catch(console.warn));
-    await resolveClient();
+    window.addEventListener('hashchange', () => {
+      window.location.reload();
+    });
+
+    resolveClient().catch(console.warn);
   </script>
-</head>
-<body>
-  <div id="root"></div>
-  <!-- STEP 3: app.js loads HERE after DOM root exists and globals set -->
-  <script src="./app.js"></script>
 </body>
 </html>
