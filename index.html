@@ -205,10 +205,19 @@
                          .find(c => c.username === username) || null;
         }
 
-        /* Fallback: direct lookup */
-        if (!client) {
-          const ds = await get(ref(db, `clients/${username}/info`));
-          if (ds.exists()) client = { ...ds.val(), id: ds.val().id || username };
+        if (!client || client.status === 'deleted' || client.active === false) {
+          document.body.innerHTML = `
+    <div style="
+      display:flex;flex-direction:column;align-items:center;
+      justify-content:center;height:100vh;background:#050505;
+      color:#fff;font-family:sans-serif;text-align:center;gap:16px">
+      <div style="font-size:48px">🚫</div>
+      <div style="font-size:24px;font-weight:700">Page Not Found</div>
+      <div style="font-size:14px;color:#666">
+        This gallery is no longer available.
+      </div>
+    </div>`;
+          return;
         }
 
         if (client && client.id) {
