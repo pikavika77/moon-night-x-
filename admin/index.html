@@ -55,7 +55,9 @@
       <div class="sb-item" data-sa-page="clients"><span class="ic">👥</span>Clients<span class="sbn" id="sa-nb-clients">0</span></div>
       <div class="sb-sec">Site</div>
       <div class="sb-item" data-sa-page="site-gallery"><span class="ic">🖼️</span>Site Gallery<span class="sbn" id="sa-global-img-count">0</span></div>
+      <div class="sb-item" data-sa-page="all-galleries"><span class="ic">🖼️</span>All Galleries</div>
       <div class="sb-item" data-sa-page="site-ads"><span class="ic">📢</span>Site Ads</div>
+      <div class="sb-item" data-sa-page="reports"><span class="ic">🚨</span>Reports<span class="sbn" id="sa-nb-reports">0</span></div>
       <div class="sb-sec">Finance</div>
       <div class="sb-item" data-sa-page="revenue"><span class="ic">💰</span>Revenue</div>
       <div class="sb-item" data-sa-page="traffic"><span class="ic">📈</span>Traffic</div>
@@ -341,6 +343,7 @@
       <div class="sb-item on" data-cl-page="dashboard"><span class="ic">📊</span>Dashboard</div>
       <div class="sb-item" data-cl-page="images"><span class="ic">🖼️</span>Images<span class="sbn" id="cl-nb-img">0</span></div>
       <div class="sb-item" data-cl-page="categories"><span class="ic">📂</span>Categories<span class="sbn" id="cl-nb-cat">0</span></div>
+      <div class="sb-item" data-cl-page="reports"><span class="ic">🚨</span>Reports<span class="sbn" id="cl-nb-reports">0</span></div>
       <div class="sb-item" data-cl-page="earning"><span class="ic">💰</span>My Earning</div>
       <div class="sb-item" data-cl-page="profile"><span class="ic">✏️</span>My Profile</div>
       <div class="sb-foot">
@@ -469,9 +472,32 @@
         </div>
       </div>
 
+      <!-- REPORTS PAGE -->
+      <div id="sa-page-reports" class="page" style="padding:24px">
+        <h2>🚨 Reported Galleries</h2>
+        <div id="sa-reports-list" style="display:grid;gap:16px;margin-top:16px"></div>
+      </div>
+
+      <!-- ALL GALLERIES PAGE -->
+      <div id="sa-page-all-galleries" class="page" style="padding:24px">
+        <h2>🖼️ All Client Galleries</h2>
+        <div id="sa-all-galleries-filter" style="margin-bottom:16px;margin-top:16px">
+          <select id="sa-ag-client-filter" style="padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none;min-width:200px">
+            <option value="">All Clients</option>
+          </select>
+        </div>
+        <div id="sa-all-galleries-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px"></div>
+      </div>
+
     </div>
   </div>
 </div>
+
+      <!-- REPORTS -->
+      <div id="cl-page-reports" class="page" style="padding:24px">
+        <h2>🚨 My Reported Images</h2>
+        <div id="cl-reports-list" style="display:grid;gap:16px;margin-top:16px"></div>
+      </div>
 
 <!-- ══ SUPER ADMIN: CLIENT MODAL ════════════════════════════════════════ -->
 <div class="overlay" id="sa-client-modal" style="display:none">
