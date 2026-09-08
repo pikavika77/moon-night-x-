@@ -3,6 +3,30 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <meta http-equiv="Cache-Control" content="public, max-age=3600">
+  <meta name="theme-color" content="#050505">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- 1. DNS PREFETCH & PRECONNECT -->
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://moon-night-x-default-rtdb.firebaseio.com" crossorigin>
+  <link rel="preconnect" href="https://firebaseinstallations.googleapis.com" crossorigin>
+  <link rel="dns-prefetch" href="https://www.gstatic.com">
+  <link rel="dns-prefetch" href="https://moon-night-x-default-rtdb.firebaseio.com">
+  <link rel="dns-prefetch" href="https://cdn.adsterra.com">
+
+  <!-- 2. PRELOAD CRITICAL RESOURCES -->
+  <link rel="preload" href="./app.css" as="style">
+  <link rel="preload" href="./app.js" as="script">
+
+  <!-- 5. RESOURCE HINTS FOR FIREBASE SDK -->
+  <link rel="preload" href="https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js" as="script" crossorigin>
+  <link rel="preload" href="https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js" as="script" crossorigin>
+  <link rel="preload" href="https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js" as="script" crossorigin>
+
   <title>Moon Light X — Premium 18+ Adult Gallery</title>
   <link rel="icon" type="image/png" href="https://moonlightx.qd.je/favicon.png">
   <meta name="description" content="Moon Light X – premium curated 18+ adult gallery. Fast, mobile-first platform with HD photography. Adults 18+ only.">
@@ -11,7 +35,8 @@
   <meta property="og:title" content="Moon Light X – Premium 18+ Adult Gallery">
   <meta property="og:url" content="https://moonlightx.qd.je/">
   <meta property="og:type" content="website">
-  <meta name="theme-color" content="#050505">
+
+  <!-- 3. CSS LOADS IN <head> -->
   <link rel="stylesheet" href="./app.css">
 
   <!-- POPUNDER placeholder -->
@@ -92,6 +117,15 @@
     const fbApp = getApps().length ? getApp() : initializeApp(FB);
     const db    = getDatabase(fbApp);
 
+    const DB_TIMEOUT = 8000; // 8 seconds max wait
+    const withTimeout = (promise, ms = DB_TIMEOUT) =>
+      Promise.race([
+        promise,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), ms)
+        )
+      ]);
+
     /* ── Parse username from hash ── */
     function getUsernameFromHash() {
       const hash  = (window.location.hash || '').replace(/^#\/?/, '');
@@ -118,8 +152,8 @@
       if (window.__mlxClientId && window.__mlxClientId !== 'global') {
         try {
           const cntRef = ref(db, `clients/${window.__mlxClientId}/reports/${imageId}/count`);
-          const snap = await get(cntRef);
-          const curCount = snap.exists() ? snap.val() : 0;
+          const snap = await withTimeout(get(cntRef)).catch(() => null);
+          const curCount = (snap && snap.exists()) ? snap.val() : 0;
           await set(cntRef, curCount + 1);
         } catch(e) {}
       }
@@ -131,8 +165,8 @@
       try {
         const today   = new Date().toISOString().slice(0, 10);
         const infoRef = ref(db, `clients/${clientId}/info`);
-        const snap    = await get(infoRef);
-        const cur     = snap.exists() ? snap.val() : {};
+        const snap    = await withTimeout(get(infoRef)).catch(() => null);
+        const cur     = (snap && snap.exists()) ? snap.val() : {};
         const upd     = { totalVisits: (cur.totalVisits || 0) + 1 };
         if (cur.todayKey === today) { upd.todayVisits = (cur.todayVisits || 0) + 1; }
         else { upd.todayVisits = 1; upd.todayKey = today; }
@@ -205,11 +239,11 @@
         /* Load global ads and site profile */
         try {
           const [adsSnap, profSnap] = await Promise.all([
-            get(ref(db, 'superAdmin/settings/globalAds')),
-            get(ref(db, 'superAdmin/settings/siteProfile'))
+            withTimeout(get(ref(db, 'superAdmin/settings/globalAds'))).catch(() => null),
+            withTimeout(get(ref(db, 'superAdmin/settings/siteProfile'))).catch(() => null)
           ]);
-          const ads  = adsSnap.exists()  ? adsSnap.val()  : {};
-          const prof = profSnap.exists() ? profSnap.val() : {};
+          const ads  = (adsSnap && adsSnap.exists())  ? adsSnap.val()  : {};
+          const prof = (profSnap && profSnap.exists()) ? profSnap.val() : {};
           window.__mlxAds = {
             popunder:  ads.popunder  || '',
             banner728: ads.banner728 || '',
@@ -240,7 +274,17 @@
         let client = null;
 
         /* Find client by username */
-        const snap = await get(ref(db, 'superAdmin/clients'));
+        const snap = await withTimeout(
+          get(ref(db, 'superAdmin/clients')),
+          DB_TIMEOUT
+        ).catch(() => null);
+
+        if (!snap) {
+          // Firebase too slow — load app with defaults
+          // Don't block page render
+          return;
+        }
+
         if (snap.exists()) {
           client = Object.values(snap.val()).filter(Boolean)
                          .find(c => c.username === username) || null;
@@ -274,8 +318,8 @@
 
           let p = {};
           try {
-            const pSnap = await get(ref(db, `clients/${cid}/info/profile`));
-            if (pSnap.exists()) p = pSnap.val();
+            const pSnap = await withTimeout(get(ref(db, `clients/${cid}/info/profile`))).catch(() => null);
+            if (pSnap && pSnap.exists()) p = pSnap.val();
           } catch(e) {}
 
           window.__mlxProfile = {
@@ -291,8 +335,8 @@
 
           let ads = {};
           try {
-            const adsSnap = await get(ref(db, `clients/${cid}/info/ads`));
-            if (adsSnap.exists()) ads = adsSnap.val();
+            const adsSnap = await withTimeout(get(ref(db, `clients/${cid}/info/ads`))).catch(() => null);
+            if (adsSnap && adsSnap.exists()) ads = adsSnap.val();
           } catch(e) {}
           window.__mlxAds = {
             popunder:  ads.popunder  || client.adPopunder  || '',
@@ -302,7 +346,17 @@
             smart:     ads.smart     || client.adSmart     || ''
           };
 
-          trackVisit(cid);
+          // Lazy load non-critical visit tracking after page is visible
+          if (window.requestIdleCallback) {
+            requestIdleCallback(() => {
+              trackVisit(cid).catch(() => {});
+            });
+          } else {
+            setTimeout(() => {
+              trackVisit(cid).catch(() => {});
+            }, 2000);
+          }
+
           injectPopunder(window.__mlxAds.popunder);
           injectBannerAds(window.__mlxAds);
         }
