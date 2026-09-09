@@ -1,25 +1,31 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <title>Karan — Premium 18+ Gallery</title>
   <link rel="icon" type="image/png" href="https://moonlightx.qd.je/favicon.png">
   <meta name="description" content="Karan – premium curated 18+ adult gallery. Fast, mobile-first platform with HD photography. Adults 18+ only.">
-  <meta name="robots" content="noindex, nofollow">
+  <meta name="robots" content="noindex,nofollow">
   <meta name="theme-color" content="#050505">
+  <link rel="preload" href="https://moonlightx.qd.je/app.js" as="script">
   <link rel="stylesheet" href="https://moonlightx.qd.je/app.css">
+  <script src="https://moonlightx.qd.je/app.js" defer></script>
 
-  <!-- POPUNDER placeholder -->
-  <div id="mlx-popunder-slot"></div>
-
-  <!-- STEP 1: Globals synchronously set BEFORE app.js loads -->
+  <!-- STEP 1: Set globals synchronously & fast prefetch -->
   <script>
+    var hash = window.location.hash || '';
+    var parts = hash.split('/');
+    var directImgId = parts[2] || '';
+    if (directImgId) {
+      window.__mlxDirectImageId = directImgId;
+    }
+
     window.__mlxImgPath    = 'clients/cl_karan_1787128309945/images';
     window.__mlxCatPath    = 'clients/cl_karan_1787128309945/categories';
     window.__mlxClientId   = "cl_karan_1787128309945";
     window.__mlxClientName = "Karan";
-    window.__mlxProfile = {
+    window.__mlxProfile    = {
       bio:       "",
       avatar:    "",
       instagram: "",
@@ -34,12 +40,223 @@
       smart:     ""
     };
     document.title = window.__mlxClientName + ' — Premium 18+ Gallery';
+
+    // Fast background prefetch to RTDB REST API so localStorage has data ready before/when app.js mounts
+    try {
+      var imgKey = 'mnx_img_' + window.__mlxClientId;
+      var tsKey  = 'mnx_ts_'  + window.__mlxClientId;
+      var catKey = 'mnx_cat_' + window.__mlxClientId;
+      var ctsKey = 'mnx_cts_' + window.__mlxClientId;
+
+      var cachedTs = localStorage.getItem(tsKey);
+      if (!cachedTs || (Date.now() - Number(cachedTs)) > 180000) {
+        fetch('https://moon-night-x-default-rtdb.firebaseio.com/' + window.__mlxImgPath + '.json')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data && typeof data === 'object') {
+              var arr = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
+              if (arr.length > 0) {
+                localStorage.setItem(imgKey, JSON.stringify(arr));
+                localStorage.setItem(tsKey, String(Date.now()));
+              }
+            }
+          }).catch(function(){});
+
+        fetch('https://moon-night-x-default-rtdb.firebaseio.com/' + window.__mlxCatPath + '.json')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data && typeof data === 'object') {
+              var arr = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
+              if (arr.length > 0) {
+                localStorage.setItem(catKey, JSON.stringify(arr));
+                localStorage.setItem(ctsKey, String(Date.now()));
+              }
+            }
+          }).catch(function(){});
+      }
+    } catch(e){}
+  </script>
+</head>
+<body>
+  <!-- popunder slot MUST be in body, not head -->
+  <div id="mlx-popunder-slot"></div>
+
+  <div id="root">
+    <!-- Instant Dark Skeleton UI (zero black screen, zero layout shift) -->
+    <div style="min-height:100vh;background:#050505;color:#fff;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;">
+      <!-- Header Skeleton -->
+      <header style="border-bottom:1px solid #222;background:#050505;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;max-width:1280px;margin:0 auto;height:60px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:32px;height:32px;background:#E02424;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:16px;">X</div>
+          <span style="font-weight:900;font-size:18px;letter-spacing:-0.5px;color:#fff;">KARAN</span>
+          <span style="background:rgba(224,36,36,0.1);color:#E02424;border:1px solid rgba(224,36,36,0.3);font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;">18+</span>
+        </div>
+        <div style="width:140px;height:32px;background:#111;border:1px solid #222;border-radius:9999px;"></div>
+      </header>
+
+      <!-- Content Container Skeleton -->
+      <div style="max-width:1280px;margin:0 auto;padding:24px 16px;display:flex;flex-direction:column;gap:24px;">
+        <!-- Hero Banner Skeleton -->
+        <div style="border-radius:16px;border:1px solid #222;background:#111;padding:24px;min-height:160px;display:flex;flex-direction:column;justify-content:center;gap:12px;">
+          <div style="width:140px;height:20px;background:#222;border-radius:9999px;"></div>
+          <div style="width:50%;height:28px;background:#222;border-radius:8px;"></div>
+          <div style="width:35%;height:14px;background:#1a1a1a;border-radius:6px;"></div>
+        </div>
+
+        <!-- Categories Skeleton -->
+        <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;">
+          <div style="width:80px;height:32px;background:#E02424;border-radius:9999px;flex-shrink:0;"></div>
+          <div style="width:100px;height:32px;background:#111;border:1px solid #222;border-radius:9999px;flex-shrink:0;"></div>
+          <div style="width:90px;height:32px;background:#111;border:1px solid #222;border-radius:9999px;flex-shrink:0;"></div>
+          <div style="width:110px;height:32px;background:#111;border:1px solid #222;border-radius:9999px;flex-shrink:0;"></div>
+        </div>
+
+        <!-- Grid Cards Skeleton -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;">
+          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
+          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
+          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
+          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
+          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
+          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2: Inject ads -->
+  <script>
+    (function waitForAds() {
+      var ads = window.__mlxAds || {};
+
+      function setSlotSize(slotId, width, height) {
+        var el = document.getElementById(slotId);
+        if (!el) return;
+        el.style.width = width;
+        el.style.height = height;
+        el.style.minWidth = width;
+        el.style.minHeight = height;
+        el.style.overflow = 'hidden';
+        el.style.display = 'block';
+      }
+
+      function applySlotSize(slotId) {
+        var isMobile = (window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth) < 768;
+        if (slotId === 'adsterra-top-leaderboard') {
+          setSlotSize('adsterra-top-leaderboard', isMobile ? '320px' : '728px', isMobile ? '50px' : '90px');
+        } else if (slotId === 'adsterra-native-incontent') {
+          setSlotSize('adsterra-native-incontent', '300px', '250px');
+        } else if (slotId === 'adsterra-sidebar-skyscraper') {
+          setSlotSize('adsterra-sidebar-skyscraper', '160px', '600px');
+        } else if (slotId === 'adsterra-mobile-sticky') {
+          setSlotSize('adsterra-mobile-sticky', '320px', '50px');
+        } else if (slotId === 'adsterra-bottom-footer') {
+          setSlotSize('adsterra-bottom-footer', isMobile ? '320px' : '728px', isMobile ? '50px' : '90px');
+        }
+      }
+
+      // Helper: re-execute scripts inside an element
+      function runScripts(el) {
+        var scripts = el.querySelectorAll('script');
+        for (var i = 0; i < scripts.length; i++) {
+          var orig = scripts[i];
+          var s = document.createElement('script');
+          if (orig.src) {
+            s.src = orig.src;
+            s.async = false;
+          } else {
+            s.textContent = orig.textContent;
+          }
+          orig.parentNode.replaceChild(s, orig);
+        }
+      }
+
+      // Helper: inject ad into a slot
+      function inject(slotId, code) {
+        if (!code || !code.trim()) return false;
+        var el = document.getElementById(slotId);
+        if (!el) return false;
+        if (el.dataset.adInjected === '1') return true;
+        el.innerHTML = code;
+        el.dataset.adInjected = '1';
+        applySlotSize(slotId);
+        runScripts(el);
+        return true;
+      }
+
+      // Slot map
+      var SLOTS = [
+        { id: 'mlx-popunder-slot',           code: ads.popunder  },
+        { id: 'adsterra-top-leaderboard',    code: ads.banner728 },
+        { id: 'adsterra-native-incontent',   code: ads.box300    },
+        { id: 'adsterra-sidebar-skyscraper', code: ads.smart     },
+        { id: 'adsterra-mobile-sticky',      code: ads.banner320 },
+        { id: 'adsterra-bottom-footer',      code: ads.banner728 }
+      ];
+
+      function tryInjectAll() {
+        var pending = [];
+        for (var i = 0; i < SLOTS.length; i++) {
+          if (!inject(SLOTS[i].id, SLOTS[i].code)) {
+            if (SLOTS[i].code && SLOTS[i].code.trim()) {
+              pending.push(SLOTS[i]);
+            }
+          }
+        }
+        return pending;
+      }
+
+      var pending = tryInjectAll();
+      if (pending.length === 0) return;
+
+      var observer = new MutationObserver(function() {
+        var stillPending = [];
+        for (var i = 0; i < pending.length; i++) {
+          if (!inject(pending[i].id, pending[i].code)) {
+            stillPending.push(pending[i]);
+          }
+        }
+        pending = stillPending;
+        if (pending.length === 0) {
+          observer.disconnect();
+        }
+      });
+
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+
+      // Stop after 90 seconds and do one final check
+      setTimeout(function() {
+        observer.disconnect();
+        tryInjectAll();
+      }, 90000);
+
+      window.addEventListener('load', function() {
+        setTimeout(function() {
+          tryInjectAll();
+        }, 1000);
+      });
+
+      window.addEventListener('scroll', function onScroll() {
+        var el = document.getElementById('adsterra-bottom-footer');
+        if (el && !el.dataset.adInjected && ads.banner728) {
+          inject('adsterra-bottom-footer', ads.banner728);
+          if (el.dataset.adInjected) {
+            window.removeEventListener('scroll', onScroll);
+          }
+        }
+      }, { passive: true });
+    })();
   </script>
 
-  <!-- STEP 2: Firebase async — live profile + visit tracking -->
+  <!-- STEP 3: Firebase async — live profile + visit tracking -->
   <script type="module">
-    import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-    import { getDatabase, ref, get, update }   from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
+    import { initializeApp, getApps, getApp }
+      from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+    import { getDatabase, ref, get, update, set }
+      from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
 
     const FB = {
       apiKey:            "AIzaSyACW8aFQmlaoaxNtE55m8Pck6H8BRlfEbs",
@@ -54,7 +271,30 @@
     const fbApp = getApps().length ? getApp() : initializeApp(FB);
     const db    = getDatabase(fbApp);
 
-    /* Live profile update from Firebase */
+    /* ── Report handler for React app ── */
+    window.__mlxReportHandler = async function(imageId, reason) {
+      const reportId = Date.now() + '_' + Math.random().toString(36).slice(2);
+      const reportData = {
+        imageId,
+        reason:      reason || 'inappropriate',
+        clientId:    "cl_karan_1787128309945",
+        clientName:  "Karan",
+        imagePath:   'clients/cl_karan_1787128309945/images/' + imageId,
+        reportedAt:  new Date().toISOString(),
+        status:      'pending',
+        reporterInfo: { userAgent: navigator.userAgent }
+      };
+      await set(ref(db, 'reports/' + reportId), reportData);
+      await set(ref(db, 'superAdmin/reports/' + reportId), reportData);
+      try {
+        const cntRef = ref(db, 'clients/cl_karan_1787128309945/reports/' + imageId + '/count');
+        const snap = await get(cntRef);
+        const curCount = snap.exists() ? snap.val() : 0;
+        await set(cntRef, curCount + 1);
+      } catch(e) {}
+    };
+
+    // Live profile update
     try {
       const pSnap = await get(ref(db, 'clients/cl_karan_1787128309945/info/profile'));
       if (pSnap.exists()) {
@@ -72,52 +312,7 @@
       }
     } catch(e) {}
 
-    /* ── Execute scripts injected via innerHTML ── */
-    function execScriptsIn(el) {
-      el.querySelectorAll('script').forEach(old => {
-        const s = document.createElement('script');
-        if (old.src) { s.src = old.src; s.async = true; }
-        else { s.textContent = old.textContent; }
-        old.parentNode.replaceChild(s, old);
-      });
-    }
-
-    /* ── Inject popunder ── */
-    function injectPopunder(code) {
-      if (!code) return;
-      const div = document.getElementById('mlx-popunder-slot');
-      if (div) { div.innerHTML = code; execScriptsIn(div); }
-    }
-
-    /* ── Inject banner/box ads into React ad slots ── */
-    function injectBannerAds(ads) {
-      if (!ads) return;
-      const SLOT_MAP = {
-        'adsterra-top-leaderboard':    window.__mlxAds.banner728 || '',
-        'adsterra-native-incontent':   window.__mlxAds.box300    || '',
-        'adsterra-sidebar-skyscraper': window.__mlxAds.smart     || '',
-        'adsterra-mobile-sticky':      window.__mlxAds.banner320 || '',
-        'adsterra-bottom-footer':      window.__mlxAds.banner728 || ''
-      };
-      const injected   = new Set();
-      const totalSlots = Object.values(SLOT_MAP).filter(Boolean).length;
-      if (totalSlots === 0) return;
-      const obs = new MutationObserver(() => {
-        Object.entries(SLOT_MAP).forEach(([sid, code]) => {
-          if (!code || injected.has(sid)) return;
-          const el = document.getElementById(sid);
-          if (el) { el.innerHTML = code; el.dataset.injected = 'true'; execScriptsIn(el); injected.add(sid); }
-        });
-        if (injected.size >= totalSlots) obs.disconnect();
-      });
-      obs.observe(document.body, { childList: true, subtree: true });
-      setTimeout(() => obs.disconnect(), 25000);
-    }
-
-    injectPopunder(window.__mlxAds.popunder);
-    injectBannerAds(window.__mlxAds);
-
-    /* ── Visit tracking ── */
+    // Visit tracking
     try {
       const today   = new Date().toISOString().slice(0, 10);
       const infoRef = ref(db, 'clients/cl_karan_1787128309945/info');
@@ -128,12 +323,7 @@
       else { upd.todayVisits = 1; upd.todayKey = today; }
       await update(infoRef, upd);
       await update(ref(db, 'superAdmin/clients/cl_karan_1787128309945'), upd).catch(() => {});
-    } catch(e) { console.warn('Visit track:', e.message); }
-
+    } catch(e) {}
   </script>
-</head>
-<body>
-  <div id="root"></div>
-  <script src="https://moonlightx.qd.je/app.js"></script>
 </body>
 </html>

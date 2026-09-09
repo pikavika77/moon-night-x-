@@ -12,12 +12,14 @@
   <meta property="og:url" content="https://moonlightx.qd.je/">
   <meta property="og:type" content="website">
   <meta name="theme-color" content="#050505">
+  <link rel="preload" href="./app.js" as="script">
   <link rel="stylesheet" href="./app.css">
+  <script src="./app.js" defer></script>
 
   <!-- POPUNDER placeholder -->
   <div id="mlx-popunder-slot"></div>
 
-  <!-- STEP 1: Globals synchronously set BEFORE app.js loads -->
+  <!-- STEP 1: Globals synchronously set BEFORE app.js loads + Immediate fast data prefetch -->
   <script>
     (function() {
       function getUsernameFromHash() {
@@ -50,34 +52,120 @@
         window.__mlxClientName = 'Moon Light X';
       }
 
-      window.__mlxProfile = {
-        bio: '',
-        avatar: '',
-        instagram: '',
-        telegram: '',
-        socialLinks: { instagram: '', telegram: '' }
-      };
+      // Load cached ads & profile synchronously if present
+      try {
+        var savedAds = localStorage.getItem('mnx_ads_' + window.__mlxClientId);
+        if (savedAds) window.__mlxAds = JSON.parse(savedAds);
+        var savedProf = localStorage.getItem('mnx_prof_' + window.__mlxClientId);
+        if (savedProf) window.__mlxProfile = JSON.parse(savedProf);
+      } catch(e){}
 
-      window.__mlxAds = {
-        popunder:  '',
-        banner728: '',
-        banner320: '',
-        box300:    '',
-        smart:     ''
-      };
+      if (!window.__mlxProfile) {
+        window.__mlxProfile = {
+          bio: '',
+          avatar: '',
+          instagram: '',
+          telegram: '',
+          socialLinks: { instagram: '', telegram: '' }
+        };
+      }
+
+      if (!window.__mlxAds) {
+        window.__mlxAds = {
+          popunder:  '',
+          banner728: '',
+          banner320: '',
+          box300:    '',
+          smart:     ''
+        };
+      }
 
       window.__mlxDemoMode    = false;
       window.__mlxUseDemoData = false;
       window.__mlxSampleData  = [];
       window.__mlxFakeData    = false;
       window.__mlxDataReady   = false;
+
+      // Fast background prefetch to RTDB REST API so localStorage has data ready before/when app.js mounts
+      try {
+        var imgKey = 'mnx_img_' + window.__mlxClientId;
+        var tsKey  = 'mnx_ts_'  + window.__mlxClientId;
+        var catKey = 'mnx_cat_' + window.__mlxClientId;
+        var ctsKey = 'mnx_cts_' + window.__mlxClientId;
+
+        var cachedTs = localStorage.getItem(tsKey);
+        if (!cachedTs || (Date.now() - Number(cachedTs)) > 180000) {
+          fetch('https://moon-night-x-default-rtdb.firebaseio.com/' + window.__mlxImgPath + '.json')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              if (data && typeof data === 'object') {
+                var arr = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
+                if (arr.length > 0) {
+                  localStorage.setItem(imgKey, JSON.stringify(arr));
+                  localStorage.setItem(tsKey, String(Date.now()));
+                }
+              }
+            }).catch(function(){});
+
+          fetch('https://moon-night-x-default-rtdb.firebaseio.com/' + window.__mlxCatPath + '.json')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+              if (data && typeof data === 'object') {
+                var arr = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
+                if (arr.length > 0) {
+                  localStorage.setItem(catKey, JSON.stringify(arr));
+                  localStorage.setItem(ctsKey, String(Date.now()));
+                }
+              }
+            }).catch(function(){});
+        }
+      } catch(e){}
     })();
   </script>
 </head>
 <body>
-  <div id="root"></div>
+  <div id="root">
+    <!-- Instant Dark Skeleton UI (zero black screen, zero layout shift) -->
+    <div style="min-height:100vh;background:#050505;color:#fff;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;">
+      <!-- Header Skeleton -->
+      <header style="border-bottom:1px solid #222;background:#050505;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;max-width:1280px;margin:0 auto;height:60px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:32px;height:32px;background:#E02424;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:16px;">X</div>
+          <span style="font-weight:900;font-size:18px;letter-spacing:-0.5px;color:#fff;">MOON LIGHT <span style="color:#E02424">X</span></span>
+          <span style="background:rgba(224,36,36,0.1);color:#E02424;border:1px solid rgba(224,36,36,0.3);font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;">18+</span>
+        </div>
+        <div style="width:140px;height:32px;background:#111;border:1px solid #222;border-radius:9999px;"></div>
+      </header>
 
-  <!-- STEP 2: app.js loaded dynamically via loadApp() after Firebase data ready -->
+      <!-- Content Container Skeleton -->
+      <div style="max-width:1280px;margin:0 auto;padding:24px 16px;display:flex;flex-direction:column;gap:24px;">
+        <!-- Hero Banner Skeleton -->
+        <div style="border-radius:16px;border:1px solid #222;background:#111;padding:24px;min-height:160px;display:flex;flex-direction:column;justify-content:center;gap:12px;">
+          <div style="width:140px;height:20px;background:#222;border-radius:9999px;"></div>
+          <div style="width:50%;height:28px;background:#222;border-radius:8px;"></div>
+          <div style="width:35%;height:14px;background:#1a1a1a;border-radius:6px;"></div>
+        </div>
+
+        <!-- Categories Skeleton -->
+        <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;">
+          <div style="width:80px;height:32px;background:#E02424;border-radius:9999px;flex-shrink:0;"></div>
+          <div style="width:100px;height:32px;background:#111;border:1px solid #222;border-radius:9999px;flex-shrink:0;"></div>
+          <div style="width:90px;height:32px;background:#111;border:1px solid #222;border-radius:9999px;flex-shrink:0;"></div>
+          <div style="width:110px;height:32px;background:#111;border:1px solid #222;border-radius:9999px;flex-shrink:0;"></div>
+        </div>
+
+        <!-- Grid Cards Skeleton -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;">
+          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
+          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
+          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
+          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
+          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
+          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- STEP 3: Firebase async — live ads, profile updates, client resolution & visit tracking -->
   <script type="module">
@@ -249,7 +337,7 @@
       window.addEventListener('load', function() {
         setTimeout(function() {
           tryInjectAll();
-        }, 3000);
+        }, 1000);
       });
 
       window.addEventListener('scroll', function onScroll() {
@@ -263,7 +351,7 @@
       }, { passive: true });
     }
 
-    /* ── Main client resolver (runs after React mounted for live ads, title, profile, visit tracking) ── */
+    /* ── Main client resolver ── */
     async function resolveClient() {
       const hash = window.location.hash; // #/username/imageId
       const parts = hash.split('/');
@@ -304,6 +392,10 @@
             telegram:  '',
             socialLinks: { instagram: '', telegram: '' }
           };
+          try {
+            localStorage.setItem('mnx_ads_global', JSON.stringify(window.__mlxAds));
+            localStorage.setItem('mnx_prof_global', JSON.stringify(window.__mlxProfile));
+          } catch(e){}
           if (prof.name) {
             window.__mlxClientName = prof.name;
             document.title = `${prof.name} — Premium 18+ Gallery`;
@@ -383,6 +475,11 @@
             smart:     ads.smart     || client.adSmart     || ''
           };
 
+          try {
+            localStorage.setItem('mnx_ads_' + cid, JSON.stringify(window.__mlxAds));
+            localStorage.setItem('mnx_prof_' + cid, JSON.stringify(window.__mlxProfile));
+          } catch(e){}
+
           trackVisit(cid);
           injectPopunder(window.__mlxAds.popunder);
           injectBannerAds(window.__mlxAds);
@@ -394,32 +491,18 @@
       return true;
     }
 
-    let appLoaded = false;
-    function loadApp() {
-      if (appLoaded) return;
-      appLoaded = true;
-      const s = document.createElement('script');
-      s.src = './app.js';
-      document.body.appendChild(s);
-    }
-
     let currentUsername = getUsernameFromHash();
 
     window.addEventListener('hashchange', () => {
       const newUsername = getUsernameFromHash();
       if (newUsername !== currentUsername) {
         currentUsername = newUsername;
-        resolveClient().then(ok => {
-          if (ok !== false) loadApp();
-        });
+        resolveClient();
       }
     });
 
-    resolveClient().then(ok => {
-      if (ok !== false) loadApp();
-    }).catch(e => {
+    resolveClient().catch(e => {
       console.warn(e);
-      loadApp();
     });
   </script>
 </body>
