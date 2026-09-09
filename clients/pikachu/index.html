@@ -54,9 +54,9 @@
       window.__mlxDirectImageId = directImgId;
     }
 
-    window.__mlxImgPath    = 'clients/cl_pikachu_1788697966974/images';
-    window.__mlxCatPath    = 'clients/cl_pikachu_1788697966974/categories';
-    window.__mlxClientId   = "cl_pikachu_1788697966974";
+    window.__mlxImgPath    = 'clients/cl_pikachu_1788936618047/images';
+    window.__mlxCatPath    = 'clients/cl_pikachu_1788936618047/categories';
+    window.__mlxClientId   = "cl_pikachu_1788936618047";
     window.__mlxClientName = "Pikachu";
     window.__mlxProfile    = {
       bio:       "",
@@ -66,10 +66,10 @@
       socialLinks: { instagram: "", telegram: "" }
     };
     window.__mlxAds = {
-      popunder:  "<script src=\"https://pl30770374.profitableratecpmnetwork.com/bd/88/c0/bd88c0d7bbd485e01cb30308c24099f3.js\"><\/script>",
-      banner728: "<script>atOptions = {'key' : '8df869d3e75af76fa646bbe0839d3846','format' : 'iframe','height' : 90,'width' : 728,'params' : {}};<\\/script><script src=\"https://www.highrevenueformat.com/8df869d3e75af76fa646bbe0839d3846/invoke.js\"><\/script>",
-      banner320: "<script>atOptions = {'key' : 'dc78abb4b5f1a5dd29d6bfb9fb4be8c3','format' : 'iframe','height' : 50,'width' : 320,'params' : {}};<\\/script><script src=\"https://www.highrevenueformat.com/dc78abb4b5f1a5dd29d6bfb9fb4be8c3/invoke.js\"><\/script>",
-      box300:    "<script>atOptions = {'key' : '86a5f408cf04dec6c08fa74d451c90e6','format' : 'iframe','height' : 250,'width' : 300,'params' : {}};<\\/script><script src=\"https://www.highrevenueformat.com/86a5f408cf04dec6c08fa74d451c90e6/invoke.js\"><\/script>",
+      popunder:  "<script src=\"https://pl30770374.profitableratecpmnetwork.com/bd/88/c0/bd88c0d7bbd485e01cb30308c24099f3.js\"></script>",
+      banner728: "<script>\n  atOptions = {\n    'key' : '8df869d3e75af76fa646bbe0839d3846',\n    'format' : 'iframe',\n    'height' : 90,\n    'width' : 728,\n    'params' : {}\n  };\n</script>\n<script src=\"https://www.highrevenueformat.com/8df869d3e75af76fa646bbe0839d3846/invoke.js\"></script>",
+      banner320: "<script>\n  atOptions = {\n    'key' : 'dc78abb4b5f1a5dd29d6bfb9fb4be8c3',\n    'format' : 'iframe',\n    'height' : 50,\n    'width' : 320,\n    'params' : {}\n  };\n</script>\n<script src=\"https://www.highrevenueformat.com/dc78abb4b5f1a5dd29d6bfb9fb4be8c3/invoke.js\"></script>",
+      box300:    "<script>\n  atOptions = {\n    'key' : '86a5f408cf04dec6c08fa74d451c90e6',\n    'format' : 'iframe',\n    'height' : 250,\n    'width' : 300,\n    'params' : {}\n  };\n</script>\n<script src=\"https://www.highrevenueformat.com/86a5f408cf04dec6c08fa74d451c90e6/invoke.js\"></script>",
       smart:     "https://www.profitableratecpmnetwork.com/pfx8ida0q?key=35ee6c65d7ab88218cfe278e62e889ca"
     };
     document.title = window.__mlxClientName + ' — Premium 18+ Gallery';
@@ -310,9 +310,9 @@
       const reportData = {
         imageId,
         reason:      reason || 'inappropriate',
-        clientId:    "cl_pikachu_1788697966974",
+        clientId:    "cl_pikachu_1788936618047",
         clientName:  "Pikachu",
-        imagePath:   'clients/cl_pikachu_1788697966974/images/' + imageId,
+        imagePath:   'clients/cl_pikachu_1788936618047/images/' + imageId,
         reportedAt:  new Date().toISOString(),
         status:      'pending',
         reporterInfo: { userAgent: navigator.userAgent }
@@ -320,7 +320,7 @@
       await set(ref(db, 'reports/' + reportId), reportData);
       await set(ref(db, 'superAdmin/reports/' + reportId), reportData);
       try {
-        const cntRef = ref(db, 'clients/cl_pikachu_1788697966974/reports/' + imageId + '/count');
+        const cntRef = ref(db, 'clients/cl_pikachu_1788936618047/reports/' + imageId + '/count');
         const snap = await get(cntRef);
         const curCount = snap.exists() ? snap.val() : 0;
         await set(cntRef, curCount + 1);
@@ -329,7 +329,7 @@
 
     // Live profile update
     try {
-      const pSnap = await get(ref(db, 'clients/cl_pikachu_1788697966974/info/profile'));
+      const pSnap = await get(ref(db, 'clients/cl_pikachu_1788936618047/info/profile'));
       if (pSnap.exists()) {
         const p = pSnap.val();
         window.__mlxProfile = {
@@ -348,14 +348,14 @@
     // Visit tracking
     try {
       const today   = new Date().toISOString().slice(0, 10);
-      const infoRef = ref(db, 'clients/cl_pikachu_1788697966974/info');
+      const infoRef = ref(db, 'clients/cl_pikachu_1788936618047/info');
       const snap    = await get(infoRef);
       const cur     = snap.exists() ? snap.val() : {};
       const upd     = { totalVisits: (cur.totalVisits || 0) + 1 };
       if (cur.todayKey === today) { upd.todayVisits = (cur.todayVisits || 0) + 1; }
       else { upd.todayVisits = 1; upd.todayKey = today; }
       await update(infoRef, upd);
-      await update(ref(db, 'superAdmin/clients/cl_pikachu_1788697966974'), upd).catch(() => {});
+      await update(ref(db, 'superAdmin/clients/cl_pikachu_1788936618047'), upd).catch(() => {});
     } catch(e) {}
   </script>
 </body>
