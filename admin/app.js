@@ -757,14 +757,11 @@ async function generateClientSiteHTML(clientId) {
   <meta name="description" content="${name.replace(/"/g,'&quot;')} – premium curated 18+ adult gallery. Fast, mobile-first platform with HD photography. Adults 18+ only.">
   <meta name="robots" content="noindex,nofollow">
   <meta name="theme-color" content="#050505">
+  <link rel="preload" href="https://moonlightx.qd.je/app.js" as="script">
   <link rel="stylesheet" href="https://moonlightx.qd.je/app.css">
-</head>
-<body>
-  <!-- popunder slot MUST be in body, not head -->
-  <div id="mlx-popunder-slot"></div>
-  <div id="root"></div>
+  <script src="https://moonlightx.qd.je/app.js" defer><\/script>
 
-  <!-- STEP 1: Set globals synchronously -->
+  <!-- STEP 1: Set globals synchronously & fast prefetch -->
   <script>
     var hash = window.location.hash || '';
     var parts = hash.split('/');
@@ -792,12 +789,91 @@ async function generateClientSiteHTML(clientId) {
       smart:     ${esc(adSmart)}
     };
     document.title = window.__mlxClientName + ' — Premium 18+ Gallery';
+
+    // Fast background prefetch to RTDB REST API so localStorage has data ready before/when app.js mounts
+    try {
+      var imgKey = 'mnx_img_' + window.__mlxClientId;
+      var tsKey  = 'mnx_ts_'  + window.__mlxClientId;
+      var catKey = 'mnx_cat_' + window.__mlxClientId;
+      var ctsKey = 'mnx_cts_' + window.__mlxClientId;
+
+      var cachedTs = localStorage.getItem(tsKey);
+      if (!cachedTs || (Date.now() - Number(cachedTs)) > 180000) {
+        fetch('https://moon-night-x-default-rtdb.firebaseio.com/' + window.__mlxImgPath + '.json')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data && typeof data === 'object') {
+              var arr = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
+              if (arr.length > 0) {
+                localStorage.setItem(imgKey, JSON.stringify(arr));
+                localStorage.setItem(tsKey, String(Date.now()));
+              }
+            }
+          }).catch(function(){});
+
+        fetch('https://moon-night-x-default-rtdb.firebaseio.com/' + window.__mlxCatPath + '.json')
+          .then(function(r) { return r.json(); })
+          .then(function(data) {
+            if (data && typeof data === 'object') {
+              var arr = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
+              if (arr.length > 0) {
+                localStorage.setItem(catKey, JSON.stringify(arr));
+                localStorage.setItem(ctsKey, String(Date.now()));
+              }
+            }
+          }).catch(function(){});
+      }
+    } catch(e){}
   <\/script>
+</head>
+<body>
+  <!-- popunder slot MUST be in body, not head -->
+  <div id="mlx-popunder-slot"></div>
 
-  <!-- STEP 2: Load React app WITH globals already set -->
-  <script src="https://moonlightx.qd.je/app.js"><\/script>
+  <div id="root">
+    <!-- Instant Dark Skeleton UI (zero black screen, zero layout shift) -->
+    <div style="min-height:100vh;background:#050505;color:#fff;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;">
+      <!-- Header Skeleton -->
+      <header style="border-bottom:1px solid #222;background:#050505;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;max-width:1280px;margin:0 auto;height:60px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:32px;height:32px;background:#E02424;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:16px;">X</div>
+          <span style="font-weight:900;font-size:18px;letter-spacing:-0.5px;color:#fff;">${name.replace(/</g,'&lt;').toUpperCase()}</span>
+          <span style="background:rgba(224,36,36,0.1);color:#E02424;border:1px solid rgba(224,36,36,0.3);font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;">18+</span>
+        </div>
+        <div style="width:140px;height:32px;background:#111;border:1px solid #222;border-radius:9999px;"></div>
+      </header>
 
-  <!-- STEP 3: Inject ads AFTER app.js loaded -->
+      <!-- Content Container Skeleton -->
+      <div style="max-width:1280px;margin:0 auto;padding:24px 16px;display:flex;flex-direction:column;gap:24px;">
+        <!-- Hero Banner Skeleton -->
+        <div style="border-radius:16px;border:1px solid #222;background:#111;padding:24px;min-height:160px;display:flex;flex-direction:column;justify-content:center;gap:12px;">
+          <div style="width:140px;height:20px;background:#222;border-radius:9999px;"></div>
+          <div style="width:50%;height:28px;background:#222;border-radius:8px;"></div>
+          <div style="width:35%;height:14px;background:#1a1a1a;border-radius:6px;"></div>
+        </div>
+
+        <!-- Categories Skeleton -->
+        <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;">
+          <div style="width:80px;height:32px;background:#E02424;border-radius:9999px;flex-shrink:0;"></div>
+          <div style="width:100px;height:32px;background:#111;border:1px solid #222;border-radius:9999px;flex-shrink:0;"></div>
+          <div style="width:90px;height:32px;background:#111;border:1px solid #222;border-radius:9999px;flex-shrink:0;"></div>
+          <div style="width:110px;height:32px;background:#111;border:1px solid #222;border-radius:9999px;flex-shrink:0;"></div>
+        </div>
+
+        <!-- Grid Cards Skeleton -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;">
+          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
+          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
+          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
+          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
+          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
+          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2: Inject ads -->
   <script>
     (function waitForAds() {
       var ads = window.__mlxAds || {};
@@ -909,7 +985,7 @@ async function generateClientSiteHTML(clientId) {
       window.addEventListener('load', function() {
         setTimeout(function() {
           tryInjectAll();
-        }, 3000);
+        }, 1000);
       });
 
       window.addEventListener('scroll', function onScroll() {
@@ -924,7 +1000,7 @@ async function generateClientSiteHTML(clientId) {
     })();
   <\/script>
 
-  <!-- STEP 4: Firebase async — live profile + visit tracking -->
+  <!-- STEP 3: Firebase async — live profile + visit tracking -->
   <script type="module">
     import { initializeApp, getApps, getApp }
       from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
