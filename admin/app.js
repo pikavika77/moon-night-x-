@@ -767,11 +767,7 @@ async function generateClientSiteHTML(clientId) {
       display: none !important;
     }
 
-    /* Hide placeholder text containers */
-    div:has(> span:contains("Adsterra Ready")),
-    div:has(> p:contains("Slot reserved")) {
-      display: none !important;
-    }
+
 
     /* Target the specific label structure React renders */
     .adsterra-top-leaderboard > div:first-child:not(iframe):not(script),
@@ -787,6 +783,12 @@ async function generateClientSiteHTML(clientId) {
     #adsterra-sidebar-skyscraper > div:not(:has(iframe)):not(:has(ins)),
     #adsterra-mobile-sticky > div:not(:has(iframe)):not(:has(ins)),
     #adsterra-bottom-footer > div:not(:has(iframe)):not(:has(ins)) {
+      display: none !important;
+    }
+
+    /* Ensure no text or header elements above ads are displayed */
+    [class*="ADVERTISEMENT"],
+    div:has(> button[title*="Adsterra"]) {
       display: none !important;
     }
   </style>
