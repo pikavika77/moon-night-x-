@@ -802,6 +802,32 @@ async function generateClientSiteHTML(clientId) {
     (function waitForAds() {
       var ads = window.__mlxAds || {};
 
+      function setSlotSize(slotId, width, height) {
+        var el = document.getElementById(slotId);
+        if (!el) return;
+        el.style.width = width;
+        el.style.height = height;
+        el.style.minWidth = width;
+        el.style.minHeight = height;
+        el.style.overflow = 'hidden';
+        el.style.display = 'block';
+      }
+
+      function applySlotSize(slotId) {
+        var isMobile = (window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth) < 768;
+        if (slotId === 'adsterra-top-leaderboard') {
+          setSlotSize('adsterra-top-leaderboard', isMobile ? '320px' : '728px', isMobile ? '50px' : '90px');
+        } else if (slotId === 'adsterra-native-incontent') {
+          setSlotSize('adsterra-native-incontent', '300px', '250px');
+        } else if (slotId === 'adsterra-sidebar-skyscraper') {
+          setSlotSize('adsterra-sidebar-skyscraper', '160px', '600px');
+        } else if (slotId === 'adsterra-mobile-sticky') {
+          setSlotSize('adsterra-mobile-sticky', '320px', '50px');
+        } else if (slotId === 'adsterra-bottom-footer') {
+          setSlotSize('adsterra-bottom-footer', isMobile ? '320px' : '728px', isMobile ? '50px' : '90px');
+        }
+      }
+
       // Helper: re-execute scripts inside an element
       function runScripts(el) {
         var scripts = el.querySelectorAll('script');
@@ -826,6 +852,7 @@ async function generateClientSiteHTML(clientId) {
         if (el.dataset.adInjected === '1') return true;
         el.innerHTML = code;
         el.dataset.adInjected = '1';
+        applySlotSize(slotId);
         runScripts(el);
         return true;
       }
@@ -840,17 +867,19 @@ async function generateClientSiteHTML(clientId) {
         { id: 'adsterra-bottom-footer',      code: ads.banner728 }
       ];
 
-      // Try injecting all slots immediately
-      var pending = [];
-      for (var i = 0; i < SLOTS.length; i++) {
-        if (!inject(SLOTS[i].id, SLOTS[i].code)) {
-          if (SLOTS[i].code && SLOTS[i].code.trim()) {
-            pending.push(SLOTS[i]);
+      function tryInjectAll() {
+        var pending = [];
+        for (var i = 0; i < SLOTS.length; i++) {
+          if (!inject(SLOTS[i].id, SLOTS[i].code)) {
+            if (SLOTS[i].code && SLOTS[i].code.trim()) {
+              pending.push(SLOTS[i]);
+            }
           }
         }
+        return pending;
       }
 
-      // If any slots still pending, watch DOM for them
+      var pending = tryInjectAll();
       if (pending.length === 0) return;
 
       var observer = new MutationObserver(function() {
@@ -871,10 +900,27 @@ async function generateClientSiteHTML(clientId) {
         subtree: true
       });
 
-      // Stop after 60 seconds
+      // Stop after 90 seconds and do one final check
       setTimeout(function() {
         observer.disconnect();
-      }, 60000);
+        tryInjectAll();
+      }, 90000);
+
+      window.addEventListener('load', function() {
+        setTimeout(function() {
+          tryInjectAll();
+        }, 3000);
+      });
+
+      window.addEventListener('scroll', function onScroll() {
+        var el = document.getElementById('adsterra-bottom-footer');
+        if (el && !el.dataset.adInjected && ads.banner728) {
+          inject('adsterra-bottom-footer', ads.banner728);
+          if (el.dataset.adInjected) {
+            window.removeEventListener('scroll', onScroll);
+          }
+        }
+      }, { passive: true });
     })();
   <\/script>
 
