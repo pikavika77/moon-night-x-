@@ -14,6 +14,37 @@
   <meta name="theme-color" content="#050505">
   <link rel="preload" href="./app.js" as="script">
   <link rel="stylesheet" href="./app.css">
+  <style>
+    /* Hide Adsterra placeholder labels */
+    [class*="adsterra-placeholder"],
+    [class*="ad-placeholder"],
+    [class*="advertisement-label"] {
+      display: none !important;
+    }
+
+    /* Hide placeholder text containers */
+    div:has(> span:contains("Adsterra Ready")),
+    div:has(> p:contains("Slot reserved")) {
+      display: none !important;
+    }
+
+    /* Target the specific label structure React renders */
+    .adsterra-top-leaderboard > div:first-child:not(iframe):not(script),
+    .adsterra-native-incontent > div:first-child:not(iframe):not(script),
+    .adsterra-mobile-sticky > div:first-child:not(iframe):not(script),
+    .adsterra-bottom-footer > div:first-child:not(iframe):not(script) {
+      display: none !important;
+    }
+
+    /* Hide any div that only contains placeholder text */
+    #adsterra-top-leaderboard > div:not(:has(iframe)):not(:has(ins)),
+    #adsterra-native-incontent > div:not(:has(iframe)):not(:has(ins)),
+    #adsterra-sidebar-skyscraper > div:not(:has(iframe)):not(:has(ins)),
+    #adsterra-mobile-sticky > div:not(:has(iframe)):not(:has(ins)),
+    #adsterra-bottom-footer > div:not(:has(iframe)):not(:has(ins)) {
+      display: none !important;
+    }
+  </style>
   <script src="./app.js" defer></script>
 
   <!-- POPUNDER placeholder -->
