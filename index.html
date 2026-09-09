@@ -49,8 +49,7 @@
   </style>
   <script src="./app.js" defer></script>
 
-  <!-- POPUNDER placeholder -->
-  <div id="mlx-popunder-slot"></div>
+
 
   <!-- STEP 1: Globals synchronously set BEFORE app.js loads + Immediate fast data prefetch -->
   <script>
@@ -157,6 +156,7 @@
   </script>
 </head>
 <body>
+  <div id="mlx-popunder-slot"></div>
   <div id="root">
     <!-- Instant Dark Skeleton UI (zero black screen, zero layout shift) -->
     <div style="min-height:100vh;background:#050505;color:#fff;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;">
@@ -270,6 +270,7 @@
     /* ── Execute scripts injected via innerHTML ── */
     function execScriptsIn(el) {
       el.querySelectorAll('script').forEach(old => {
+        if (!old || !old.parentNode) return;
         const s = document.createElement('script');
         if (old.src) { s.src = old.src; s.async = true; }
         else { s.textContent = old.textContent; }
@@ -320,10 +321,15 @@
         var el = document.getElementById(slotId);
         if (!el) return false;
         if (el.dataset.adInjected === '1') return true;
-        el.innerHTML = code;
+        var container = document.createElement('div');
+        container.style.width = '100%';
+        container.style.display = 'flex';
+        container.style.justifyContent = 'center';
+        container.innerHTML = code;
+        el.appendChild(container);
         el.dataset.adInjected = '1';
         applySlotSize(slotId);
-        execScriptsIn(el);
+        execScriptsIn(container);
         return true;
       }
 
@@ -438,6 +444,7 @@
         } catch(e) {
           console.warn('Global site data load error:', e);
         }
+        window.dispatchEvent(new CustomEvent('mlx-client-resolved', { detail: { clientId: 'global', imgPath: 'globalSite/images', catPath: 'globalSite/categories' } }));
         window.__mlxDataReady = true;
         return true;
       }
@@ -516,6 +523,7 @@
           trackVisit(cid);
           injectPopunder(window.__mlxAds.popunder);
           injectBannerAds(window.__mlxAds);
+          window.dispatchEvent(new CustomEvent('mlx-client-resolved', { detail: { clientId: cid, imgPath: window.__mlxImgPath, catPath: window.__mlxCatPath } }));
         }
       } catch(e) {
         console.warn('Resolver error:', e);

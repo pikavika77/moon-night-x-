@@ -2126,6 +2126,7 @@ document.getElementById('cl-im-save').addEventListener('click', async ()=>{
   const btn=document.getElementById('cl-im-save'); btn.textContent='⏳...'; btn.disabled=true;
   try{
     await set(ref(db,`clients/${clientId}/images/${id}`),data);
+try{localStorage.removeItem('mnx_ts_'+clientId);localStorage.removeItem('mnx_img_'+clientId);}catch(e){}
     toast(`✅ Image ${clEditImgId?'updated':'saved'}!`);
     document.getElementById('cl-img-modal').style.display='none';
   }catch(e){toast('❌ '+e.message,'err');}
@@ -2134,7 +2135,7 @@ document.getElementById('cl-im-save').addEventListener('click', async ()=>{
 
 async function clDeleteImg(id,title){
   if(!confirm(`Delete "${title}"?`)) return;
-  try{ await remove(ref(db,`clients/${clClientData?.id}/images/${id}`)); toast('🗑️ Deleted'); }
+  try{ await remove(ref(db,`clients/${clClientData?.id}/images/${id}`)); try{localStorage.removeItem('mnx_ts_'+clClientData?.id);localStorage.removeItem('mnx_img_'+clClientData?.id);}catch(e){} toast('🗑️ Deleted'); }
   catch(e){ toast('❌ '+e.message,'err'); }
 }
 
@@ -2193,6 +2194,7 @@ document.getElementById('cl-cm-save').addEventListener('click',async()=>{
   const btn=document.getElementById('cl-cm-save'); btn.textContent='⏳...'; btn.disabled=true;
   try{
     await set(ref(db,`clients/${clientId}/categories/${id}`),data);
+try{localStorage.removeItem('mnx_cts_'+clientId);localStorage.removeItem('mnx_cat_'+clientId);}catch(e){}
     toast(`✅ Category "${name}" saved!`);
     document.getElementById('cl-cat-modal').style.display='none';
   }catch(e){toast('❌ '+e.message,'err');}
@@ -2200,7 +2202,7 @@ document.getElementById('cl-cm-save').addEventListener('click',async()=>{
 });
 async function clDeleteCat(id,name){
   if(!confirm(`Delete "${name}"?`)) return;
-  try{ await remove(ref(db,`clients/${clClientData?.id}/categories/${id}`)); toast('🗑️ Category deleted'); }
+  try{ await remove(ref(db,`clients/${clClientData?.id}/categories/${id}`)); try{localStorage.removeItem('mnx_cts_'+clClientData?.id);localStorage.removeItem('mnx_cat_'+clClientData?.id);}catch(e){} toast('🗑️ Category deleted'); }
   catch(e){ toast('❌ '+e.message,'err'); }
 }
 
