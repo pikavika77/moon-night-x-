@@ -821,6 +821,10 @@ async function generateClientSiteHTML(clientId) {
       box300:    ${esc(adBox300)},
       smart:     ${esc(adSmart)}
     };
+    window.__mlxDemoMode    = false;
+    window.__mlxUseDemoData = false;
+    window.__mlxSampleData  = [];
+    window.__mlxFakeData    = false;
     document.title = window.__mlxClientName + ' — Premium 18+ Gallery';
 
     // Fast background prefetch to RTDB REST API so localStorage has data ready before/when app.js mounts
