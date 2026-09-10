@@ -47,10 +47,6 @@
       display: none !important;
     }
   </style>
-  <script src="./app.js" defer></script>
-
-
-
   <!-- STEP 1: Globals synchronously set BEFORE app.js loads + Immediate fast data prefetch -->
   <script>
     (function() {
@@ -452,14 +448,22 @@
       try {
         let client = null;
 
-        /* Find client by username */
+        let clientId = null;
+        let clientData = null;
+
+        /* Find client in Firebase by username and extract key as clientId */
         const snap = await get(ref(db, 'superAdmin/clients'));
         if (snap.exists()) {
-          client = Object.values(snap.val()).filter(Boolean)
-                         .find(c => c.username === username) || null;
+          const clients = snap.val();
+          const clientEntry = Object.entries(clients)
+            .find(([id, c]) => c && c.username === username);
+
+          if (clientEntry) {
+            [clientId, clientData] = clientEntry;
+          }
         }
 
-        if (!client || client.status === 'deleted' || client.active === false) {
+        if (!clientData || clientData.status === 'deleted' || clientData.active === false) {
           document.body.innerHTML = `
     <div style="
       display:flex;flex-direction:column;align-items:center;
@@ -474,16 +478,16 @@
           return false;
         }
 
-        if (client && client.id) {
-          const cid = client.id;
+        if (clientId) {
+          const cid = clientId;
 
           try { localStorage.setItem('mnx_client_id_' + username, cid); } catch(e){}
 
-          window.__mlxImgPath    = `clients/${cid}/images`;
-          window.__mlxCatPath    = `clients/${cid}/categories`;
           window.__mlxClientId   = cid;
-          window.__mlxClientName = client.name || 'Moon Light X';
-          if (client.name) document.title = `${client.name} — Premium 18+ Gallery`;
+          window.__mlxImgPath    = 'clients/' + cid + '/images';
+          window.__mlxCatPath    = 'clients/' + cid + '/categories';
+          window.__mlxClientName = clientData.name || username;
+          if (clientData.name) document.title = `${clientData.name} — Premium 18+ Gallery`;
 
           let p = {};
           try {
@@ -508,12 +512,17 @@
             if (adsSnap.exists()) ads = adsSnap.val();
           } catch(e) {}
           window.__mlxAds = {
-            popunder:  ads.popunder  || client.adPopunder  || '',
-            banner728: ads.banner728 || client.adBanner728 || '',
-            banner320: ads.banner320 || client.adBanner320 || '',
-            box300:    ads.box300    || client.adBox300    || '',
-            smart:     ads.smart     || client.adSmart     || ''
+            popunder:  ads.popunder  || clientData.adPopunder  || '',
+            banner728: ads.banner728 || clientData.adBanner728 || '',
+            banner320: ads.banner320 || clientData.adBanner320 || '',
+            box300:    ads.box300    || clientData.adBox300    || '',
+            smart:     ads.smart     || clientData.adSmart     || ''
           };
+
+          window.__mlxDemoMode    = false;
+          window.__mlxUseDemoData = false;
+          window.__mlxSampleData  = [];
+          window.__mlxFakeData    = false;
 
           try {
             localStorage.setItem('mnx_ads_' + cid, JSON.stringify(window.__mlxAds));
@@ -542,8 +551,20 @@
       }
     });
 
-    resolveClient().catch(e => {
+    let appLoaded = false;
+    function loadAppScript() {
+      if (appLoaded) return;
+      appLoaded = true;
+      const s = document.createElement('script');
+      s.src = './app.js';
+      document.head.appendChild(s);
+    }
+
+    resolveClient().then(() => {
+      loadAppScript();
+    }).catch(e => {
       console.warn(e);
+      loadAppScript();
     });
   </script>
 </body>
