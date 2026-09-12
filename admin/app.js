@@ -427,6 +427,51 @@ function saShowPage(name) {
   if(name === 'site-ads')     saInitGlobalSite();
   if(name === 'reports')      saInitReports();
   if(name === 'all-galleries') saInitAllGalleries();
+  if(name === 'hero')         saLoadHero();
+}
+
+async function saLoadHero() {
+  try {
+    const snap = await get(ref(db, 'superAdmin/settings/globalHero'));
+    if (snap.exists()) {
+      const h = snap.val();
+      if (document.getElementById('sa-hero-title'))    document.getElementById('sa-hero-title').value = h.title || '';
+      if (document.getElementById('sa-hero-subtitle')) document.getElementById('sa-hero-subtitle').value = h.subtitle || '';
+      if (document.getElementById('sa-hero-btn'))      document.getElementById('sa-hero-btn').value = h.buttonText || '';
+      if (document.getElementById('sa-hero-bg'))       document.getElementById('sa-hero-bg').value = h.bgImage || '';
+    }
+  } catch(e) {
+    console.warn('saLoadHero error:', e);
+  }
+}
+
+async function saSaveHero() {
+  const statusEl = document.getElementById('sa-hero-status');
+  const heroData = {
+    title:      document.getElementById('sa-hero-title')?.value.trim() || '',
+    subtitle:   document.getElementById('sa-hero-subtitle')?.value.trim() || '',
+    buttonText: document.getElementById('sa-hero-btn')?.value.trim() || '',
+    bgImage:    document.getElementById('sa-hero-bg')?.value.trim() || ''
+  };
+  try {
+    await set(ref(db, 'superAdmin/settings/globalHero'), heroData);
+    await set(ref(db, 'globalSite/hero'), heroData).catch(() => {});
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.style.color = 'var(--grn)';
+      statusEl.textContent = '✅ Global Hero Section saved successfully!';
+      setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+    }
+    toast('✅ Global Hero saved!');
+    saAddLog('edit', 'Updated Global Hero Section');
+  } catch(e) {
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.style.color = 'var(--red)';
+      statusEl.textContent = '❌ ' + e.message;
+    }
+    toast('❌ ' + e.message, 'err');
+  }
 }
 document.querySelectorAll('[data-sa-page]').forEach(el =>
   el.addEventListener('click', () => saShowPage(el.dataset.saPage)));
@@ -579,6 +624,66 @@ function saPopulateGlobalCatSelect() {
   if (cur) sel.value = cur;
 }
 
+function prefillImageDefaults() {
+  const views = Math.floor(Math.random() * 49000) + 1000;
+  const likes = Math.floor(views * 0.1);
+  const comments = Math.floor(views * 0.01);
+
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && !el.value) el.value = val;
+  };
+
+  set('cl-img-views',      views);
+  set('cl-img-likes',      likes);
+  set('cl-img-comments',   comments);
+  set('cl-img-resolution', '3830x5126');
+  set('cl-img-format',     'WebP (Optimized)');
+  set('cl-img-filesize',   '45');
+  set('cl-img-compliance', '18+ Consenting Adult');
+  set('cl-img-tags',       'glamour, hd, premium, 18+');
+
+  set('cl-m-views',      views);
+  set('cl-m-likes',      likes);
+  set('cl-m-comments',   comments);
+  set('cl-m-res',        '3830x5126');
+  set('cl-m-fmt',        'WebP (Optimized)');
+  set('cl-m-size',       '45');
+  set('cl-m-compliance', '18+ Consenting Adult');
+  set('cl-m-tags',       'glamour, hd, premium, 18+');
+
+  set('sa-gadd-views',      views);
+  set('sa-gadd-likes',      likes);
+  set('sa-gadd-comments',   comments);
+  set('sa-gadd-resolution', '3830x5126');
+  set('sa-gadd-format',     'WebP (Optimized)');
+  set('sa-gadd-filesize',   '45');
+  set('sa-gadd-compliance', '18+ Consenting Adult');
+  set('sa-gadd-tags',       'glamour, hd, premium, 18+');
+
+  // Category default: first available option
+  ['cl-m-cat', 'sa-gadd-cat'].forEach(catId => {
+    const el = document.getElementById(catId);
+    if (el && el.options && el.options.length > 0) {
+      if (!el.value || el.value === 'general') {
+        el.value = el.options[0].value;
+      }
+    }
+  });
+}
+
+function autoDeriveModel(titleId, modelId) {
+  const titleEl = document.getElementById(titleId);
+  const modelEl = document.getElementById(modelId);
+  if (!titleEl || !modelEl) return;
+  const title = titleEl.value.trim();
+  if (!title) return;
+  const firstWord = title.split(/\s+/)[0].replace(/[^a-zA-Z0-9]/g, '');
+  if (firstWord && (!modelEl.value || modelEl.value.startsWith('Model:'))) {
+    modelEl.value = 'Model: ' + firstWord;
+  }
+}
+
 async function saAddGlobalImg() {
   const title    = document.getElementById('sa-gadd-title')?.value.trim();
   const thumb    = document.getElementById('sa-gadd-thumb')?.value.trim();
@@ -587,11 +692,25 @@ async function saAddGlobalImg() {
   const downloadUrl = document.getElementById('sa-gadd-download')?.value.trim()||'';
   const cat      = document.getElementById('sa-gadd-cat')?.value||'general';
   const desc     = document.getElementById('sa-gadd-desc')?.value.trim()||'';
+  const views    = parseInt(document.getElementById('sa-gadd-views')?.value) || 0;
+  const likes    = parseInt(document.getElementById('sa-gadd-likes')?.value) || 0;
+  const comments = parseInt(document.getElementById('sa-gadd-comments')?.value) || 0;
+  const resolution = document.getElementById('sa-gadd-resolution')?.value.trim() || '3830x5126';
+  const format   = document.getElementById('sa-gadd-format')?.value.trim() || 'WebP (Optimized)';
+  const filesize = document.getElementById('sa-gadd-filesize')?.value.trim() || '45';
+  const compliance = document.getElementById('sa-gadd-compliance')?.value.trim() || '18+ Consenting Adult';
+  const tagsStr  = document.getElementById('sa-gadd-tags')?.value.trim() || 'glamour, hd, premium, 18+';
+  const tags     = tagsStr.split(',').map(s=>s.trim()).filter(Boolean);
+
   if (!title||!thumb) { toast('⚠️ Title aur Thumbnail URL zaroori hain!','warn'); return; }
   const id = 'img-' + Date.now();
   try {
-    await set(ref(db, `globalSite/images/${id}`), { id, title, thumb, thumbnail:thumb, hires:hires||thumb, url:thumb, watchUrl, downloadUrl, category:cat, description:desc, createdAt:new Date().toISOString() });
-    ['sa-gadd-title','sa-gadd-thumb','sa-gadd-hires','sa-gadd-watch','sa-gadd-download','sa-gadd-desc'].forEach(k => { const e=document.getElementById(k); if(e) e.value=''; });
+    await set(ref(db, `globalSite/images/${id}`), {
+      id, title, thumb, thumbnail:thumb, hires:hires||thumb, url:thumb, watchUrl, downloadUrl,
+      category:cat, description:desc, views, likes, comments, resolution, format, filesize, compliance, tags,
+      createdAt:new Date().toISOString()
+    });
+    ['sa-gadd-title','sa-gadd-thumb','sa-gadd-hires','sa-gadd-watch','sa-gadd-download','sa-gadd-desc','sa-gadd-views','sa-gadd-likes','sa-gadd-comments','sa-gadd-resolution','sa-gadd-format','sa-gadd-filesize','sa-gadd-compliance','sa-gadd-tags'].forEach(k => { const e=document.getElementById(k); if(e) e.value=''; });
     document.getElementById('sa-global-add-modal').style.display='none';
     toast('✅ Image add ho gayi!');
     saAddLog('add','Global site image added: '+title);
@@ -726,9 +845,14 @@ document.getElementById('sa-q-client')?.addEventListener('input', saRenderClient
 async function generateClientSiteHTML(clientId) {
   const c = saClients.find(x => x.id === clientId) || {};
   let profile = {};
+  let hero = {};
   try {
     const snap = await get(ref(db, `clients/${clientId}/info/profile`));
     if (snap.exists()) profile = snap.val();
+  } catch(e) {}
+  try {
+    const hSnap = await get(ref(db, `clients/${clientId}/info/hero`));
+    if (hSnap.exists()) hero = hSnap.val();
   } catch(e) {}
 
   const id        = c.id || clientId;
@@ -743,6 +867,11 @@ async function generateClientSiteHTML(clientId) {
   const adBanner320 = c.adBanner320 || '';
   const adBox300    = c.adBox300    || '';
   const adSmart     = c.adSmart     || '';
+
+  const heroTitle = hero.title || c.hero?.title || `${name} Premium HD Showcase`;
+  const heroSubtitle = hero.subtitle || c.hero?.subtitle || `Exclusive high resolution curated adult gallery photography for ${name}.`;
+  const heroBtnText = hero.buttonText || c.hero?.buttonText || `View Featured Gallery`;
+  const heroBg = hero.bgImage || c.hero?.bgImage || '';
 
   const esc = v => JSON.stringify(v || '');
 
@@ -813,6 +942,12 @@ async function generateClientSiteHTML(clientId) {
       instagram: ${esc(instagram)},
       telegram:  ${esc(telegram)},
       socialLinks: { instagram: ${esc(instagram)}, telegram: ${esc(telegram)} }
+    };
+    window.__mlxHero = {
+      title:      ${esc(heroTitle)},
+      subtitle:   ${esc(heroSubtitle)},
+      buttonText: ${esc(heroBtnText)},
+      bgImage:    ${esc(heroBg)}
     };
     window.__mlxAds = {
       popunder:  ${esc(adPopunder)},
@@ -1377,6 +1512,13 @@ document.getElementById('sa-cm-save').addEventListener('click', async () => {
   const existing = saEditId ? saClients.find(c => c.id === id) : null;
   const base     = getBase();
 
+  const heroDefaults = {
+    title:      `${name} Premium HD Showcase`,
+    subtitle:   `Exclusive high resolution curated adult gallery photography for ${name}.`,
+    buttonText: `View Featured Gallery`,
+    bgImage:    existing?.hero?.bgImage || ''
+  };
+
   const data = {
     id,
     name,
@@ -1399,6 +1541,7 @@ document.getElementById('sa-cm-save').addEventListener('click', async () => {
     totalViews:     existing ? (existing.totalViews    || 0) : 0,
     adminUrl:       'https://moonlightx.qd.je/admin/#/admin/' + username,
     siteUrl:        'https://moonlightx.qd.je/#/' + username,
+    hero:           existing?.hero || heroDefaults
   };
 
   const btn = document.getElementById('sa-cm-save');
@@ -1411,6 +1554,10 @@ document.getElementById('sa-cm-save').addEventListener('click', async () => {
 
     try {
       await update(ref(db, `clients/${id}/info`), data);
+      if (!existing || !existing.hero) {
+        await set(ref(db, `clients/${id}/info/hero`), heroDefaults);
+        await set(ref(db, `superAdmin/clients/${id}/hero`), heroDefaults);
+      }
     } catch(syncErr) {
       console.warn("Syncing to clients/info failed:", syncErr);
     }
@@ -1903,6 +2050,60 @@ function clShowPage(name) {
   if(name==='earning') clRenderEarning();
   if(name==='profile')  clLoadProfile();
   if(name==='reports')  clInitReports();
+  if(name==='hero')     clLoadHero();
+}
+
+async function clLoadHero() {
+  const clientId = clClientData?.id;
+  if (!clientId) return;
+  try {
+    const snap = await get(ref(db, `clients/${clientId}/info/hero`));
+    if (snap.exists()) {
+      const h = snap.val();
+      if (document.getElementById('cl-hero-title'))    document.getElementById('cl-hero-title').value = h.title || '';
+      if (document.getElementById('cl-hero-subtitle')) document.getElementById('cl-hero-subtitle').value = h.subtitle || '';
+      if (document.getElementById('cl-hero-btn'))      document.getElementById('cl-hero-btn').value = h.buttonText || '';
+      if (document.getElementById('cl-hero-bg'))       document.getElementById('cl-hero-bg').value = h.bgImage || '';
+    } else {
+      if (clClientData?.name) {
+        if (document.getElementById('cl-hero-title'))    document.getElementById('cl-hero-title').value = `${clClientData.name} Premium HD Showcase`;
+        if (document.getElementById('cl-hero-subtitle')) document.getElementById('cl-hero-subtitle').value = `Exclusive high resolution curated adult gallery photography for ${clClientData.name}.`;
+        if (document.getElementById('cl-hero-btn'))      document.getElementById('cl-hero-btn').value = `View Featured Gallery`;
+      }
+    }
+  } catch(e) {
+    console.warn('clLoadHero error:', e);
+  }
+}
+
+async function clSaveHero() {
+  const clientId = clClientData?.id;
+  if (!clientId) return;
+  const statusEl = document.getElementById('cl-hero-status');
+  const heroData = {
+    title:      document.getElementById('cl-hero-title')?.value.trim() || '',
+    subtitle:   document.getElementById('cl-hero-subtitle')?.value.trim() || '',
+    buttonText: document.getElementById('cl-hero-btn')?.value.trim() || '',
+    bgImage:    document.getElementById('cl-hero-bg')?.value.trim() || ''
+  };
+  try {
+    await set(ref(db, `clients/${clientId}/info/hero`), heroData);
+    await set(ref(db, `superAdmin/clients/${clientId}/hero`), heroData).catch(() => {});
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.style.color = 'var(--grn)';
+      statusEl.textContent = '✅ Hero Section saved successfully!';
+      setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+    }
+    toast('✅ Hero Section saved!');
+  } catch(e) {
+    if (statusEl) {
+      statusEl.style.display = 'block';
+      statusEl.style.color = 'var(--red)';
+      statusEl.textContent = '❌ ' + e.message;
+    }
+    toast('❌ ' + e.message, 'err');
+  }
 }
 document.querySelectorAll('[data-cl-page]').forEach(el => el.addEventListener('click', () => clShowPage(el.dataset.clPage)));
 document.querySelectorAll('[data-cl-goto]').forEach(el  => el.addEventListener('click', () => clShowPage(el.dataset.clGoto)));
@@ -2070,13 +2271,18 @@ function clPopulateCatDropdowns() {
 }
 
 function clClearImgForm() {
-  ['cl-m-id','cl-m-slug','cl-m-title','cl-m-desc','cl-m-thumb','cl-m-hires','cl-m-watch','cl-m-download','cl-m-gallery','cl-m-model','cl-m-res','cl-m-size','cl-m-tags','cl-m-up'].forEach(id=>document.getElementById(id).value='');
-  ['cl-m-views','cl-m-likes'].forEach(id=>document.getElementById(id).value='0');
-  ['cl-m-ft','cl-m-tr','cl-m-pp','cl-m-nw'].forEach(id=>document.getElementById(id).checked=false);
-  document.getElementById('cl-m-aspect').value='portrait';
-  document.getElementById('cl-m-fmt').value='WebP';
-  document.getElementById('cl-p-thumb').style.display='none';
-  document.getElementById('cl-p-hires').style.display='none';
+  ['cl-m-id','cl-m-slug','cl-m-title','cl-m-desc','cl-m-thumb','cl-m-hires','cl-m-watch','cl-m-download','cl-m-gallery','cl-m-model','cl-m-res','cl-m-size','cl-m-tags','cl-m-up','cl-m-views','cl-m-likes','cl-m-comments','cl-m-compliance'].forEach(id=>{
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  ['cl-m-ft','cl-m-tr','cl-m-pp','cl-m-nw'].forEach(id=>{
+    const el = document.getElementById(id);
+    if (el) el.checked = false;
+  });
+  if (document.getElementById('cl-m-aspect')) document.getElementById('cl-m-aspect').value='portrait';
+  if (document.getElementById('cl-m-fmt')) document.getElementById('cl-m-fmt').value='WebP';
+  if (document.getElementById('cl-p-thumb')) document.getElementById('cl-p-thumb').style.display='none';
+  if (document.getElementById('cl-p-hires')) document.getElementById('cl-p-hires').style.display='none';
 }
 
 function clOpenAddImg() {
@@ -2085,6 +2291,7 @@ function clOpenAddImg() {
   document.getElementById('cl-im-save').textContent='💾 Save Image';
   clClearImgForm();
   clPopulateCatDropdowns();
+  prefillImageDefaults();
   document.getElementById('cl-m-id').disabled=false;
   document.getElementById('cl-img-modal').style.display='flex';
 }
@@ -2106,13 +2313,15 @@ function clOpenEditImg(id) {
   document.getElementById('cl-m-download').value=img.downloadUrl||'';
   document.getElementById('cl-m-gallery').value=(img.galleryImages||[]).join('\n');
   document.getElementById('cl-m-model').value=img.modelName||'';
-  document.getElementById('cl-m-res').value=img.resolution||'';
-  document.getElementById('cl-m-fmt').value=img.format||'WebP';
-  document.getElementById('cl-m-size').value=img.fileSize||'';
-  document.getElementById('cl-m-views').value=img.views||0;
-  document.getElementById('cl-m-likes').value=img.likes||0;
+  document.getElementById('cl-m-res').value=img.resolution||'3830x5126';
+  document.getElementById('cl-m-fmt').value=img.format||'WebP (Optimized)';
+  document.getElementById('cl-m-size').value=img.fileSize||'45';
+  document.getElementById('cl-m-views').value=img.views!==undefined?img.views:1000;
+  document.getElementById('cl-m-likes').value=img.likes!==undefined?img.likes:100;
+  if (document.getElementById('cl-m-comments')) document.getElementById('cl-m-comments').value=img.comments!==undefined?img.comments:10;
+  if (document.getElementById('cl-m-compliance')) document.getElementById('cl-m-compliance').value=img.compliance||'18+ Consenting Adult';
   document.getElementById('cl-m-up').value=img.uploadedAt||'';
-  document.getElementById('cl-m-tags').value=(img.tags||[]).join(', ');
+  document.getElementById('cl-m-tags').value=Array.isArray(img.tags)?img.tags.join(', '):(img.tags||'glamour, hd, premium, 18+');
   document.getElementById('cl-m-ft').checked=!!img.isFeatured;
   document.getElementById('cl-m-tr').checked=!!img.isTrending;
   document.getElementById('cl-m-pp').checked=!!img.isPopular;
@@ -2125,6 +2334,9 @@ document.getElementById('cl-btn-add-img').addEventListener('click', clOpenAddImg
 document.getElementById('cl-btn-add-img-page').addEventListener('click', clOpenAddImg);
 document.getElementById('cl-im-cancel').addEventListener('click', ()=>document.getElementById('cl-img-modal').style.display='none');
 ['cl-m-thumb','cl-m-hires'].forEach(id=>document.getElementById(id).addEventListener('input',()=>{ clPrevImg('cl-m-thumb','cl-p-thumb'); clPrevImg('cl-m-hires','cl-p-hires'); }));
+
+document.getElementById('cl-m-title')?.addEventListener('input', () => autoDeriveModel('cl-m-title', 'cl-m-model'));
+document.getElementById('sa-gadd-title')?.addEventListener('input', () => autoDeriveModel('sa-gadd-title', 'sa-gadd-desc'));
 
 document.getElementById('cl-im-save').addEventListener('click', async ()=>{
   const clientId = clClientData?.id; if(!clientId) return;
@@ -2139,9 +2351,14 @@ document.getElementById('cl-im-save').addEventListener('click', async ()=>{
     category:document.getElementById('cl-m-cat').value,aspectRatio:document.getElementById('cl-m-aspect').value,
     thumbnailUrl:thumb,highResUrl:hires,watchUrl,downloadUrl,
     galleryImages:document.getElementById('cl-m-gallery').value.trim().split('\n').map(s=>s.trim()).filter(Boolean),
-    modelName:document.getElementById('cl-m-model').value.trim(),resolution:document.getElementById('cl-m-res').value.trim(),
-    format:document.getElementById('cl-m-fmt').value,fileSize:document.getElementById('cl-m-size').value.trim(),
-    views:parseInt(document.getElementById('cl-m-views').value)||0,likes:parseInt(document.getElementById('cl-m-likes').value)||0,
+    modelName:document.getElementById('cl-m-model').value.trim(),
+    resolution:document.getElementById('cl-m-res').value.trim()||'3830x5126',
+    format:document.getElementById('cl-m-fmt').value||'WebP (Optimized)',
+    fileSize:document.getElementById('cl-m-size').value.trim()||'45',
+    compliance:document.getElementById('cl-m-compliance')?.value.trim()||'18+ Consenting Adult',
+    views:parseInt(document.getElementById('cl-m-views').value)||0,
+    likes:parseInt(document.getElementById('cl-m-likes').value)||0,
+    comments:parseInt(document.getElementById('cl-m-comments')?.value)||0,
     uploadedAt:document.getElementById('cl-m-up').value.trim()||'Just now',
     tags:document.getElementById('cl-m-tags').value.split(',').map(s=>s.trim()).filter(Boolean),
     isFeatured:document.getElementById('cl-m-ft').checked,isTrending:document.getElementById('cl-m-tr').checked,
@@ -2541,6 +2758,11 @@ window.saDismissReport = saDismissReport;
 window.clInitReports = clInitReports;
 window.saInitAllGalleries = saInitAllGalleries;
 window.saDeleteGalleryImage = saDeleteGalleryImage;
+window.clLoadHero = clLoadHero;
+window.clSaveHero = clSaveHero;
+window.saLoadHero = saLoadHero;
+window.saSaveHero = saSaveHero;
+window.prefillImageDefaults = prefillImageDefaults;
 
 // ── INIT ───────────────────────────────────────────────────────────────
 document.getElementById('sa-nb-log').textContent = saActLog.length;

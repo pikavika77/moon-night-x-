@@ -54,6 +54,7 @@
       <div class="sb-item on" data-sa-page="dashboard"><span class="ic">📊</span>Dashboard</div>
       <div class="sb-item" data-sa-page="clients"><span class="ic">👥</span>Clients<span class="sbn" id="sa-nb-clients">0</span></div>
       <div class="sb-sec">Site</div>
+      <div class="sb-item" data-sa-page="hero"><span class="ic">🎯</span>Hero Section</div>
       <div class="sb-item" data-sa-page="site-gallery"><span class="ic">🖼️</span>Site Gallery<span class="sbn" id="sa-global-img-count">0</span></div>
       <div class="sb-item" data-sa-page="all-galleries"><span class="ic">🖼️</span>All Galleries</div>
       <div class="sb-item" data-sa-page="site-ads"><span class="ic">📢</span>Site Ads</div>
@@ -253,7 +254,7 @@
             <h2 style="margin:0;font-size:20px">🖼️ Site Gallery</h2>
             <div style="font-size:12px;color:var(--mu);margin-top:4px">Real site pe dikhne wali images — moonlightx.qd.je pe global gallery</div>
           </div>
-          <button class="btn btn-r" onclick="document.getElementById('sa-global-add-modal').style.display='flex'">+ Add Image</button>
+          <button class="btn btn-r" onclick="document.getElementById('sa-global-add-modal').style.display='flex';prefillImageDefaults();">+ Add Image</button>
         </div>
         <div class="card" style="margin-bottom:18px">
           <div class="chdr"><div class="ctitle">📂 Categories</div></div>
@@ -323,6 +324,31 @@
         </div>
       </div>
 
+      <!-- SUPER ADMIN HERO PAGE -->
+      <div id="sa-page-hero" class="page" style="padding:24px">
+        <h2>🎯 Global Site Hero Section</h2>
+        <div style="display:grid;gap:14px;max-width:600px;margin-top:16px">
+          <div>
+            <label style="font-size:11px;font-weight:600;color:var(--mu);display:block;margin-bottom:6px">Hero Title</label>
+            <input id="sa-hero-title" type="text" placeholder="Moon Light X Premium HD Showcase" style="width:100%;padding:9px 13px;background:var(--bg);border:1px solid var(--br);border-radius:10px;color:var(--tx);font-size:13px;outline:none;box-sizing:border-box"/>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:600;color:var(--mu);display:block;margin-bottom:6px">Hero Subtitle</label>
+            <textarea id="sa-hero-subtitle" rows="3" style="width:100%;padding:9px 13px;background:var(--bg);border:1px solid var(--br);border-radius:10px;color:var(--tx);font-size:13px;outline:none;resize:vertical;box-sizing:border-box"></textarea>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:600;color:var(--mu);display:block;margin-bottom:6px">Hero Button Text</label>
+            <input id="sa-hero-btn" type="text" placeholder="View Featured Gallery" style="width:100%;padding:9px 13px;background:var(--bg);border:1px solid var(--br);border-radius:10px;color:var(--tx);font-size:13px;outline:none;box-sizing:border-box"/>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:600;color:var(--mu);display:block;margin-bottom:6px">Background Image URL</label>
+            <input id="sa-hero-bg" type="url" placeholder="https://..." style="width:100%;padding:9px 13px;background:var(--bg);border:1px solid var(--br);border-radius:10px;color:var(--tx);font-size:13px;outline:none;box-sizing:border-box"/>
+          </div>
+          <button class="btn btn-r" onclick="saSaveHero()">💾 Save Hero Section</button>
+          <div id="sa-hero-status" style="display:none;font-size:12px;margin-top:8px"></div>
+        </div>
+      </div>
+
     </div>
   </div>
 </div>
@@ -344,6 +370,7 @@
       <div class="sb-item" data-cl-page="images"><span class="ic">🖼️</span>Images<span class="sbn" id="cl-nb-img">0</span></div>
       <div class="sb-item" data-cl-page="categories"><span class="ic">📂</span>Categories<span class="sbn" id="cl-nb-cat">0</span></div>
       <div class="sb-item" data-cl-page="reports"><span class="ic">🚨</span>Reports<span class="sbn" id="cl-nb-reports">0</span></div>
+      <div class="sb-item" data-cl-page="hero"><span class="ic">🎯</span>Hero Section</div>
       <div class="sb-item" data-cl-page="earning"><span class="ic">💰</span>My Earning</div>
       <div class="sb-item" data-cl-page="profile"><span class="ic">✏️</span>My Profile</div>
       <div class="sb-foot">
@@ -408,6 +435,31 @@
             <thead><tr><th>ID</th><th>Name</th><th>Images</th><th>Actions</th></tr></thead>
             <tbody id="cl-cat-tbody"></tbody>
           </table></div>
+        </div>
+      </div>
+
+      <!-- HERO SECTION PAGE -->
+      <div id="cl-page-hero" class="page" style="padding:24px">
+        <h2 style="margin:0 0 20px;font-size:20px">🎯 Hero Section</h2>
+        <div style="display:grid;gap:14px;max-width:600px">
+          <div>
+            <label style="font-size:11px;font-weight:600;color:var(--mu);display:block;margin-bottom:6px">Hero Title</label>
+            <input id="cl-hero-title" type="text" placeholder="Pikachu Premium HD Showcase" style="width:100%;padding:9px 13px;background:var(--bg);border:1px solid var(--br);border-radius:10px;color:var(--tx);font-size:13px;outline:none;box-sizing:border-box"/>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:600;color:var(--mu);display:block;margin-bottom:6px">Hero Subtitle</label>
+            <textarea id="cl-hero-subtitle" rows="3" placeholder="Exclusive high resolution..." style="width:100%;padding:9px 13px;background:var(--bg);border:1px solid var(--br);border-radius:10px;color:var(--tx);font-size:13px;outline:none;resize:vertical;box-sizing:border-box"></textarea>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:600;color:var(--mu);display:block;margin-bottom:6px">Hero Button Text</label>
+            <input id="cl-hero-btn" type="text" placeholder="View Featured Gallery" style="width:100%;padding:9px 13px;background:var(--bg);border:1px solid var(--br);border-radius:10px;color:var(--tx);font-size:13px;outline:none;box-sizing:border-box"/>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:600;color:var(--mu);display:block;margin-bottom:6px">Hero Background Image URL (optional)</label>
+            <input id="cl-hero-bg" type="url" placeholder="https://..." style="width:100%;padding:9px 13px;background:var(--bg);border:1px solid var(--br);border-radius:10px;color:var(--tx);font-size:13px;outline:none;box-sizing:border-box"/>
+          </div>
+          <button class="btn btn-r" onclick="clSaveHero()">💾 Save Hero Section</button>
+          <div id="cl-hero-status" style="display:none;font-size:12px;margin-top:8px"></div>
         </div>
       </div>
 
@@ -596,6 +648,40 @@
         <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:4px">Description (optional)</div>
         <textarea id="sa-gadd-desc" rows="2" placeholder="Image description..." style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none;resize:vertical;box-sizing:border-box"></textarea>
       </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:4px">Views</div>
+          <input id="sa-gadd-views" type="number" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none;box-sizing:border-box"/>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:4px">Likes</div>
+          <input id="sa-gadd-likes" type="number" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none;box-sizing:border-box"/>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:4px">Comments</div>
+          <input id="sa-gadd-comments" type="number" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none;box-sizing:border-box"/>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:4px">Resolution</div>
+          <input id="sa-gadd-resolution" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none;box-sizing:border-box"/>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:4px">Format</div>
+          <input id="sa-gadd-format" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none;box-sizing:border-box"/>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:4px">File Size</div>
+          <input id="sa-gadd-filesize" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none;box-sizing:border-box"/>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:4px">Compliance</div>
+          <input id="sa-gadd-compliance" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none;box-sizing:border-box"/>
+        </div>
+        <div>
+          <div style="font-size:10px;font-weight:700;color:var(--mu);text-transform:uppercase;margin-bottom:4px">Tags</div>
+          <input id="sa-gadd-tags" style="width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;color:var(--tx);font-size:12px;outline:none;box-sizing:border-box"/>
+        </div>
+      </div>
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-r" onclick="saAddGlobalImg()">✅ Add Image</button>
@@ -698,8 +784,10 @@
       <div class="fg"><label>Resolution</label><input id="cl-m-res" placeholder="3840x5120"/></div>
       <div class="fg"><label>Format</label><select id="cl-m-fmt"><option>WebP</option><option>AVIF</option><option>JPEG</option></select></div>
       <div class="fg"><label>File Size</label><input id="cl-m-size" placeholder="1.8 MB"/></div>
-      <div class="fg"><label>Views</label><input id="cl-m-views" type="number" value="0"/></div>
-      <div class="fg"><label>Likes</label><input id="cl-m-likes" type="number" value="0"/></div>
+      <div class="fg"><label>Views</label><input id="cl-m-views" type="number"/></div>
+      <div class="fg"><label>Likes</label><input id="cl-m-likes" type="number"/></div>
+      <div class="fg"><label>Comments</label><input id="cl-m-comments" type="number"/></div>
+      <div class="fg"><label>Compliance</label><input id="cl-m-compliance" placeholder="18+ Consenting Adult"/></div>
       <div class="fg"><label>Uploaded At</label><input id="cl-m-up" placeholder="Just now"/></div>
       <div class="fg"><label>Tags (comma sep)</label><input id="cl-m-tags"/></div>
       <div class="fg full"><label>Flags</label>
