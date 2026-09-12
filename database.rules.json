@@ -1,0 +1,48 @@
+{
+  "rules": {
+    "superAdmin": {
+      ".read": "auth != null && auth.token.email == 'aryakaran836@gmail.com'",
+      ".write": "auth != null && auth.token.email == 'aryakaran836@gmail.com'"
+    },
+    "globalSite": {
+      ".read": true,
+      ".write": "auth != null && auth.token.email == 'aryakaran836@gmail.com'"
+    },
+    "clients": {
+      "$clientId": {
+        "images": {
+          ".read": true,
+          ".write": "auth != null"
+        },
+        "categories": {
+          ".read": true,
+          ".write": "auth != null"
+        },
+        "info": {
+          ".read": "auth != null",
+          ".write": "auth != null",
+          "profile": {
+            ".read": true,
+            ".write": "auth != null"
+          },
+          "ads": {
+            ".read": true,
+            ".write": "auth != null"
+          },
+          "hero": {
+            ".read": true,
+            ".write": "auth != null"
+          }
+        },
+        "reports": {
+          ".read": "auth != null",
+          ".write": true
+        }
+      }
+    },
+    "reports": {
+      ".read": "auth != null",
+      ".write": true
+    }
+  }
+}
