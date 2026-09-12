@@ -210,10 +210,31 @@
         var el = document.getElementById(slotId);
         if (!el) return false;
         if (el.dataset.adInjected === '1') return true;
-        el.innerHTML = code;
-        el.dataset.adInjected = '1';
+        if (slotId === 'mlx-popunder-slot') {
+          el.innerHTML = code;
+          el.dataset.adInjected = '1';
+          runScripts(el);
+          return true;
+        }
         applySlotSize(slotId);
-        runScripts(el);
+        var iframe = document.createElement('iframe');
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.border = 'none';
+        iframe.style.overflow = 'hidden';
+        iframe.scrolling = 'no';
+        iframe.setAttribute('frameborder', '0');
+        el.innerHTML = '';
+        el.appendChild(iframe);
+        el.dataset.adInjected = '1';
+        try {
+          var doc = iframe.contentWindow.document;
+          doc.open();
+          doc.write('<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;overflow:hidden;background:transparent;display:flex;justify-content:center;align-items:center;height:100%;}</style></head><body>' + code + '</body></html>');
+          doc.close();
+        } catch (e) {
+          console.warn('Failed to write ad iframe for ' + slotId, e);
+        }
         return true;
       }
 
