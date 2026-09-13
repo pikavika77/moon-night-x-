@@ -53,7 +53,7 @@
       function getUsernameFromHostnameOrHash() {
         var hostname = window.location.hostname || '';
         var hostParts = hostname.split('.');
-        if (hostParts.length >= 4 && hostParts[0] !== 'www' && hostParts[0] !== 'moonlightx') {
+        if (hostParts.length >= 4 && hostParts[0] !== 'www' && hostParts[0] !== 'moonlightx' && hostParts[0] !== 'admin' && hostParts[0] !== 'super' && hostParts[0] !== 'gallery') {
           return hostParts[0];
         }
         var hash = (window.location.hash || '').replace(/^#\/?/, '');
@@ -223,7 +223,7 @@
     function getUsernameFromHostnameOrHash() {
       const hostname = window.location.hostname || '';
       const hostParts = hostname.split('.');
-      if (hostParts.length >= 4 && hostParts[0] !== 'www' && hostParts[0] !== 'moonlightx') {
+      if (hostParts.length >= 4 && hostParts[0] !== 'www' && hostParts[0] !== 'moonlightx' && hostParts[0] !== 'admin' && hostParts[0] !== 'super' && hostParts[0] !== 'gallery') {
         return hostParts[0];
       }
       const hash  = (window.location.hash || '').replace(/^#\/?/, '');
