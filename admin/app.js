@@ -1554,10 +1554,9 @@ document.getElementById('sa-cm-save').addEventListener('click', async () => {
 
     try {
       await update(ref(db, `clients/${id}/info`), data);
-      if (!existing || !existing.hero) {
-        await set(ref(db, `clients/${id}/info/hero`), heroDefaults);
-        await set(ref(db, `superAdmin/clients/${id}/hero`), heroDefaults);
-      }
+      const targetHero = data.hero || heroDefaults;
+      await set(ref(db, `clients/${id}/info/hero`), targetHero);
+      await set(ref(db, `superAdmin/clients/${id}/hero`), targetHero);
     } catch(syncErr) {
       console.warn("Syncing to clients/info failed:", syncErr);
     }
@@ -2056,20 +2055,22 @@ function clShowPage(name) {
 async function clLoadHero() {
   const clientId = clClientData?.id;
   if (!clientId) return;
+  const clientName = clClientData?.name || 'Gallery';
+  const defaultTitle = `${clientName} Premium HD Showcase`;
+  const defaultSubtitle = `Exclusive high resolution curated adult gallery photography for ${clientName}.`;
+  const defaultBtn = `View Featured Gallery`;
   try {
     const snap = await get(ref(db, `clients/${clientId}/info/hero`));
     if (snap.exists()) {
       const h = snap.val();
-      if (document.getElementById('cl-hero-title'))    document.getElementById('cl-hero-title').value = h.title || '';
-      if (document.getElementById('cl-hero-subtitle')) document.getElementById('cl-hero-subtitle').value = h.subtitle || '';
-      if (document.getElementById('cl-hero-btn'))      document.getElementById('cl-hero-btn').value = h.buttonText || '';
+      if (document.getElementById('cl-hero-title'))    document.getElementById('cl-hero-title').value = h.title || defaultTitle;
+      if (document.getElementById('cl-hero-subtitle')) document.getElementById('cl-hero-subtitle').value = h.subtitle || defaultSubtitle;
+      if (document.getElementById('cl-hero-btn'))      document.getElementById('cl-hero-btn').value = h.buttonText || defaultBtn;
       if (document.getElementById('cl-hero-bg'))       document.getElementById('cl-hero-bg').value = h.bgImage || '';
     } else {
-      if (clClientData?.name) {
-        if (document.getElementById('cl-hero-title'))    document.getElementById('cl-hero-title').value = `${clClientData.name} Premium HD Showcase`;
-        if (document.getElementById('cl-hero-subtitle')) document.getElementById('cl-hero-subtitle').value = `Exclusive high resolution curated adult gallery photography for ${clClientData.name}.`;
-        if (document.getElementById('cl-hero-btn'))      document.getElementById('cl-hero-btn').value = `View Featured Gallery`;
-      }
+      if (document.getElementById('cl-hero-title'))    document.getElementById('cl-hero-title').value = defaultTitle;
+      if (document.getElementById('cl-hero-subtitle')) document.getElementById('cl-hero-subtitle').value = defaultSubtitle;
+      if (document.getElementById('cl-hero-btn'))      document.getElementById('cl-hero-btn').value = defaultBtn;
     }
   } catch(e) {
     console.warn('clLoadHero error:', e);
@@ -2080,15 +2081,18 @@ async function clSaveHero() {
   const clientId = clClientData?.id;
   if (!clientId) return;
   const statusEl = document.getElementById('cl-hero-status');
+  const clientName = clClientData?.name || 'Gallery';
   const heroData = {
-    title:      document.getElementById('cl-hero-title')?.value.trim() || '',
-    subtitle:   document.getElementById('cl-hero-subtitle')?.value.trim() || '',
-    buttonText: document.getElementById('cl-hero-btn')?.value.trim() || '',
+    title:      document.getElementById('cl-hero-title')?.value.trim() || `${clientName} Premium HD Showcase`,
+    subtitle:   document.getElementById('cl-hero-subtitle')?.value.trim() || `Exclusive high resolution curated adult gallery photography for ${clientName}.`,
+    buttonText: document.getElementById('cl-hero-btn')?.value.trim() || `View Featured Gallery`,
     bgImage:    document.getElementById('cl-hero-bg')?.value.trim() || ''
   };
   try {
     await set(ref(db, `clients/${clientId}/info/hero`), heroData);
     await set(ref(db, `superAdmin/clients/${clientId}/hero`), heroData).catch(() => {});
+    await update(ref(db, `superAdmin/clients/${clientId}`), { hero: heroData }).catch(() => {});
+    await update(ref(db, `clients/${clientId}/info`), { hero: heroData }).catch(() => {});
     if (statusEl) {
       statusEl.style.display = 'block';
       statusEl.style.color = 'var(--grn)';
