@@ -145,7 +145,7 @@ function checkPublicUrlWarning() {
 
 function getClientSiteUrl(c) {
   if (!c) return '';
-  return `https://moonlightx.qd.je/clients/${c.username}/`;
+  return `https://moonlightx.qd.je/${c.username}/`;
 }
 
 // ── AUTH STATE & ROUTE HANDLING ────────────────────────────────────────
@@ -784,7 +784,7 @@ function saUpdateDash() {
 
   document.getElementById('sa-dash-clients').innerHTML = saClients.map(c => {
     const adminUrl = `https://moonlightx.qd.je/admin/#/admin/${c.username}`;
-    const siteUrl  = `https://moonlightx.qd.je/clients/${c.username}/`;
+    const siteUrl  = `https://moonlightx.qd.je/${c.username}/`;
     return `
     <tr>
       <td style="font-weight:700">${escapeHTML(c.name||'—')}</td>
@@ -812,7 +812,7 @@ function saRenderClients() {
   document.getElementById('sa-clients-foot').textContent = `${list.length} of ${saClients.length} clients`;
   document.getElementById('sa-clients-tbody').innerHTML = list.length ? list.map(c => {
     const adminUrl = `https://moonlightx.qd.je/admin/#/admin/${c.username}`;
-    const siteUrl  = `https://moonlightx.qd.je/clients/${c.username}/`;
+    const siteUrl  = `https://moonlightx.qd.je/${c.username}/`;
     return `<tr>
       <td><div style="font-weight:700">${escapeHTML(c.name||'—')}</div><div style="font-size:10px;color:var(--mu);font-family:monospace">${escapeHTML(c.id)}</div></td>
       <td>
@@ -1275,7 +1275,7 @@ async function generateClientSiteHTML(clientId) {
 function saShowShareModal(clientId) {
   const c    = saClients.find(x => x.id === clientId); if(!c) return;
   const adminUrl   = `https://moonlightx.qd.je/admin/#/admin/${c.username}`;
-  const siteUrl    = `https://moonlightx.qd.je/clients/${c.username}/`;
+  const siteUrl    = `https://moonlightx.qd.je/${c.username}/`;
 
   document.getElementById('sm-name').textContent       = c.name;
   document.getElementById('sm-admin-url').textContent  = adminUrl;
@@ -1285,7 +1285,7 @@ function saShowShareModal(clientId) {
   document.getElementById('sm-deploy-github').dataset.clientId  = clientId;
   document.getElementById('sm-deploy-status').style.display     = 'none';
   const pathHint = document.getElementById('sm-path-hint');
-  if (pathHint) pathHint.textContent = `clients/${c.username}/index.html`;
+  if (pathHint) pathHint.textContent = `${c.username}/index.html`;
 
   // Hide deployed URL section completely in share modal
   const depSection = document.getElementById('sm-deployed-section');
@@ -1419,7 +1419,7 @@ document.getElementById('sm-download-site').addEventListener('click', async () =
     status.innerHTML = '✅ <strong>File download ho gayi!</strong><br>' +
       '⚠️ <strong>ROOT mein upload mat karna!</strong><br>' +
       'GitHub repo mein yeh folder banao aur iske andar dalo:<br>' +
-      '<code style="background:#1a2a60;padding:2px 6px;border-radius:4px;color:#93c5fd">clients/' + username + '/index.html</code><br>' +
+      '<code style="background:#1a2a60;padding:2px 6px;border-radius:4px;color:#93c5fd">' + username + '/index.html</code><br>' +
       '<span style="color:var(--mu);font-size:10px">Ya ⚡ Auto Deploy use karo — woh automatically sahi jagah daalega.</span>';
     toast('✅ File downloaded!');
   } catch(e) {
@@ -1442,7 +1442,7 @@ document.getElementById('sa-cm-username').addEventListener('input', () => {
   let u = document.getElementById('sa-cm-username').value.toLowerCase().replace(/[^a-z0-9-]/g,'');
   document.getElementById('sa-cm-username').value = u;
   document.getElementById('sa-username-preview').innerHTML =
-    u ? `Admin: <span style="color:var(--grn)">https://moonlightx.qd.je/admin/#/admin/${u}</span> &nbsp;|&nbsp; Site: <span style="color:var(--blu)">https://moonlightx.qd.je/clients/${u}/</span>`
+    u ? `Admin: <span style="color:var(--grn)">https://moonlightx.qd.je/admin/#/admin/${u}</span> &nbsp;|&nbsp; Site: <span style="color:var(--blu)">https://moonlightx.qd.je/${u}/</span>`
       : 'Preview: —';
 });
 
@@ -1540,7 +1540,7 @@ document.getElementById('sa-cm-save').addEventListener('click', async () => {
     todayVisits:    existing ? (existing.todayVisits   || 0) : 0,
     totalViews:     existing ? (existing.totalViews    || 0) : 0,
     adminUrl:       'https://moonlightx.qd.je/admin/#/admin/' + username,
-    siteUrl:        'https://moonlightx.qd.je/clients/' + username + '/',
+    siteUrl:        'https://moonlightx.qd.je/' + username + '/',
     hero:           existing?.hero || heroDefaults
   };
 
@@ -1594,8 +1594,6 @@ async function deleteClientGitHubFile(username) {
   const token  = localStorage.getItem('mnx_gh_token') || '';
   const repo   = 'pikavika77/moonlightx';
   const branch = 'main';
-  const path   = `clients/${username}/index.html`;
-  const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}`;
 
   if (!token) return; // silently skip if no token
 
@@ -1605,26 +1603,31 @@ async function deleteClientGitHubFile(username) {
     'X-GitHub-Api-Version': '2022-11-28'
   };
 
-  try {
-    // Get SHA first
-    const getRes = await fetch(`${apiUrl}?ref=${branch}`, { headers });
-    if (!getRes.ok) return; // file doesn't exist, skip
+  const paths = [`${username}/index.html`, `clients/${username}/index.html`];
 
-    const fileData = await getRes.json();
-    const sha = fileData.sha;
+  for (const path of paths) {
+    const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}`;
+    try {
+      // Get SHA first
+      const getRes = await fetch(`${apiUrl}?ref=${branch}`, { headers });
+      if (!getRes.ok) continue; // file doesn't exist, skip
 
-    // Delete the file
-    await fetch(apiUrl, {
-      method: 'DELETE',
-      headers: { ...headers, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: `Remove client: ${username}`,
-        sha,
-        branch
-      })
-    });
-  } catch(e) {
-    console.warn('Error deleting client GitHub file:', e);
+      const fileData = await getRes.json();
+      const sha = fileData.sha;
+
+      // Delete the file
+      await fetch(apiUrl, {
+        method: 'DELETE',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: `Remove client: ${username}`,
+          sha,
+          branch
+        })
+      });
+    } catch(e) {
+      console.warn('Error deleting client GitHub file:', e);
+    }
   }
 }
 
@@ -1851,7 +1854,7 @@ async function deployToGitHub(clientId) {
 
   // Generate HTML
   const html = await generateClientSiteHTML(clientId);
-  const path = `clients/${c.username}/index.html`;
+  const path = `${c.username}/index.html`;
   const apiBase = `https://api.github.com/repos/${repo}/contents/${path}`;
 
   console.log('[GitHub Deploy] Starting deployment...');
@@ -1935,7 +1938,7 @@ async function deployToGitHub(clientId) {
     throw new Error(msg);
   }
 
-  const deployedUrl = `https://moonlightx.qd.je/clients/${c.username}/`;
+  const deployedUrl = `https://moonlightx.qd.je/${c.username}/`;
   console.log('[GitHub Deploy] Final Live URL:', deployedUrl);
 
   // Save deployed URL to Firebase
@@ -1964,7 +1967,7 @@ function saLoadSettings() {
   if (publicEl) { publicEl.value = publicBase; publicEl.readOnly = false; publicEl.style.opacity = '1'; publicEl.style.cursor = 'text'; }
 
   document.getElementById('sa-url-preview').textContent  = base + '/#/admin/username';
-  document.getElementById('sa-site-preview').textContent = publicBase + '/clients/username/';
+  document.getElementById('sa-site-preview').textContent = publicBase + '/username/';
 
   // Load GitHub settings
   const ghT = document.getElementById('sa-gh-token');
@@ -1980,7 +1983,7 @@ function saLoadSettings() {
 document.getElementById('sa-base-url').addEventListener('input', () => {
   const v = document.getElementById('sa-base-url').value.trim().replace(/\/+$/, '');
   document.getElementById('sa-url-preview').textContent  = (v || getBase()) + '/#/admin/username';
-  document.getElementById('sa-site-preview').textContent = getPublicBase() + '/clients/username/';
+  document.getElementById('sa-site-preview').textContent = getPublicBase() + '/username/';
 });
 document.getElementById('sa-save-base').addEventListener('click', () => {
   let url = document.getElementById('sa-base-url').value.trim().replace(/\/index\.(html?|php)$/i, '').replace(/\/+$/, '');
