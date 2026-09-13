@@ -415,14 +415,16 @@
         window.__mlxClientId   = 'global';
         window.__mlxClientName = 'Moon Light X';
 
-        /* Load global ads and site profile */
+        /* Load global ads, site profile, and global hero */
         try {
-          const [adsSnap, profSnap] = await Promise.all([
+          const [adsSnap, profSnap, heroSnap] = await Promise.all([
             get(ref(db, 'superAdmin/settings/globalAds')),
-            get(ref(db, 'superAdmin/settings/siteProfile'))
+            get(ref(db, 'superAdmin/settings/siteProfile')),
+            get(ref(db, 'superAdmin/settings/globalHero'))
           ]);
-          const ads  = adsSnap.exists()  ? adsSnap.val()  : {};
-          const prof = profSnap.exists() ? profSnap.val() : {};
+          const ads   = adsSnap.exists()  ? adsSnap.val()  : {};
+          const prof  = profSnap.exists() ? profSnap.val() : {};
+          const gHero = heroSnap.exists() ? heroSnap.val() : {};
           window.__mlxAds = {
             popunder:  ads.popunder  || '',
             banner728: ads.banner728 || '',
@@ -437,9 +439,16 @@
             telegram:  '',
             socialLinks: { instagram: '', telegram: '' }
           };
+          window.__mlxHero = {
+            title:      gHero.title      || 'Moon Light X Premium HD Showcase',
+            subtitle:   gHero.subtitle   || 'Exclusive high resolution curated adult gallery photography.',
+            buttonText: gHero.buttonText || 'View Featured Gallery',
+            bgImage:    gHero.bgImage    || ''
+          };
           try {
             localStorage.setItem('mnx_ads_global', JSON.stringify(window.__mlxAds));
             localStorage.setItem('mnx_prof_global', JSON.stringify(window.__mlxProfile));
+            localStorage.setItem('mnx_hero_global', JSON.stringify(window.__mlxHero));
           } catch(e){}
           if (prof.name) {
             window.__mlxClientName = prof.name;
@@ -529,6 +538,20 @@
             smart:     ads.smart     || clientData.adSmart     || ''
           };
 
+          let hero = {};
+          try {
+            const hSnap = await get(ref(db, `clients/${cid}/info/hero`));
+            if (hSnap.exists()) hero = hSnap.val();
+          } catch(e) {}
+
+          const cName = clientData.name || username;
+          window.__mlxHero = {
+            title:      hero.title      || clientData.hero?.title      || `${cName} Premium HD Showcase`,
+            subtitle:   hero.subtitle   || clientData.hero?.subtitle   || `Exclusive high resolution curated adult gallery photography for ${cName}.`,
+            buttonText: hero.buttonText || clientData.hero?.buttonText || `View Featured Gallery`,
+            bgImage:    hero.bgImage    || clientData.hero?.bgImage    || ''
+          };
+
           window.__mlxDemoMode    = false;
           window.__mlxUseDemoData = false;
           window.__mlxSampleData  = [];
@@ -537,6 +560,7 @@
           try {
             localStorage.setItem('mnx_ads_' + cid, JSON.stringify(window.__mlxAds));
             localStorage.setItem('mnx_prof_' + cid, JSON.stringify(window.__mlxProfile));
+            localStorage.setItem('mnx_hero_' + cid, JSON.stringify(window.__mlxHero));
           } catch(e){}
 
           trackVisit(cid);
