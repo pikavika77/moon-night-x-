@@ -145,7 +145,7 @@ function checkPublicUrlWarning() {
 
 function getClientSiteUrl(c) {
   if (!c) return '';
-  return `https://moonlightx.qd.je/#/${c.username}`;
+  return `https://moonlightx.qd.je/clients/${c.username}/`;
 }
 
 // ── AUTH STATE & ROUTE HANDLING ────────────────────────────────────────
@@ -784,7 +784,7 @@ function saUpdateDash() {
 
   document.getElementById('sa-dash-clients').innerHTML = saClients.map(c => {
     const adminUrl = `https://moonlightx.qd.je/admin/#/admin/${c.username}`;
-    const siteUrl  = `https://moonlightx.qd.je/#/${c.username}`;
+    const siteUrl  = `https://moonlightx.qd.je/clients/${c.username}/`;
     return `
     <tr>
       <td style="font-weight:700">${escapeHTML(c.name||'—')}</td>
@@ -812,7 +812,7 @@ function saRenderClients() {
   document.getElementById('sa-clients-foot').textContent = `${list.length} of ${saClients.length} clients`;
   document.getElementById('sa-clients-tbody').innerHTML = list.length ? list.map(c => {
     const adminUrl = `https://moonlightx.qd.je/admin/#/admin/${c.username}`;
-    const siteUrl  = `https://moonlightx.qd.je/#/${c.username}`;
+    const siteUrl  = `https://moonlightx.qd.je/clients/${c.username}/`;
     return `<tr>
       <td><div style="font-weight:700">${escapeHTML(c.name||'—')}</div><div style="font-size:10px;color:var(--mu);font-family:monospace">${escapeHTML(c.id)}</div></td>
       <td>
@@ -1275,7 +1275,7 @@ async function generateClientSiteHTML(clientId) {
 function saShowShareModal(clientId) {
   const c    = saClients.find(x => x.id === clientId); if(!c) return;
   const adminUrl   = `https://moonlightx.qd.je/admin/#/admin/${c.username}`;
-  const siteUrl    = `https://moonlightx.qd.je/#/${c.username}`;
+  const siteUrl    = `https://moonlightx.qd.je/clients/${c.username}/`;
 
   document.getElementById('sm-name').textContent       = c.name;
   document.getElementById('sm-admin-url').textContent  = adminUrl;
@@ -1442,7 +1442,7 @@ document.getElementById('sa-cm-username').addEventListener('input', () => {
   let u = document.getElementById('sa-cm-username').value.toLowerCase().replace(/[^a-z0-9-]/g,'');
   document.getElementById('sa-cm-username').value = u;
   document.getElementById('sa-username-preview').innerHTML =
-    u ? `Admin: <span style="color:var(--grn)">https://moonlightx.qd.je/admin/#/admin/${u}</span> &nbsp;|&nbsp; Site: <span style="color:var(--blu)">https://moonlightx.qd.je/#/${u}</span>`
+    u ? `Admin: <span style="color:var(--grn)">https://moonlightx.qd.je/admin/#/admin/${u}</span> &nbsp;|&nbsp; Site: <span style="color:var(--blu)">https://moonlightx.qd.je/clients/${u}/</span>`
       : 'Preview: —';
 });
 
@@ -1540,7 +1540,7 @@ document.getElementById('sa-cm-save').addEventListener('click', async () => {
     todayVisits:    existing ? (existing.todayVisits   || 0) : 0,
     totalViews:     existing ? (existing.totalViews    || 0) : 0,
     adminUrl:       'https://moonlightx.qd.je/admin/#/admin/' + username,
-    siteUrl:        'https://moonlightx.qd.je/#/' + username,
+    siteUrl:        'https://moonlightx.qd.je/clients/' + username + '/',
     hero:           existing?.hero || heroDefaults
   };
 
@@ -1935,7 +1935,7 @@ async function deployToGitHub(clientId) {
     throw new Error(msg);
   }
 
-  const deployedUrl = `https://moonlightx.qd.je/#/${c.username}`;
+  const deployedUrl = `https://moonlightx.qd.je/clients/${c.username}/`;
   console.log('[GitHub Deploy] Final Live URL:', deployedUrl);
 
   // Save deployed URL to Firebase
@@ -1964,7 +1964,7 @@ function saLoadSettings() {
   if (publicEl) { publicEl.value = publicBase; publicEl.readOnly = false; publicEl.style.opacity = '1'; publicEl.style.cursor = 'text'; }
 
   document.getElementById('sa-url-preview').textContent  = base + '/#/admin/username';
-  document.getElementById('sa-site-preview').textContent = publicBase + '/#/username';
+  document.getElementById('sa-site-preview').textContent = publicBase + '/clients/username/';
 
   // Load GitHub settings
   const ghT = document.getElementById('sa-gh-token');
@@ -1980,7 +1980,7 @@ function saLoadSettings() {
 document.getElementById('sa-base-url').addEventListener('input', () => {
   const v = document.getElementById('sa-base-url').value.trim().replace(/\/+$/, '');
   document.getElementById('sa-url-preview').textContent  = (v || getBase()) + '/#/admin/username';
-  document.getElementById('sa-site-preview').textContent = getPublicBase() + '/#/username';
+  document.getElementById('sa-site-preview').textContent = getPublicBase() + '/clients/username/';
 });
 document.getElementById('sa-save-base').addEventListener('click', () => {
   let url = document.getElementById('sa-base-url').value.trim().replace(/\/index\.(html?|php)$/i, '').replace(/\/+$/, '');
