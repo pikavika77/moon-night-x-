@@ -145,7 +145,7 @@ function checkPublicUrlWarning() {
 
 function getClientSiteUrl(c) {
   if (!c) return '';
-  return `https://${c.username}.moonlightx.qd.je/`;
+  return `https://moonlightx.qd.je/${c.username}/`;
 }
 
 // ── AUTH STATE & ROUTE HANDLING ────────────────────────────────────────
@@ -784,7 +784,7 @@ function saUpdateDash() {
 
   document.getElementById('sa-dash-clients').innerHTML = saClients.map(c => {
     const adminUrl = `https://moonlightx.qd.je/admin/#/admin/${c.username}`;
-    const siteUrl  = `https://${c.username}.moonlightx.qd.je/`;
+    const siteUrl  = `https://moonlightx.qd.je/${c.username}/`;
     return `
     <tr>
       <td style="font-weight:700">${escapeHTML(c.name||'—')}</td>
@@ -812,7 +812,7 @@ function saRenderClients() {
   document.getElementById('sa-clients-foot').textContent = `${list.length} of ${saClients.length} clients`;
   document.getElementById('sa-clients-tbody').innerHTML = list.length ? list.map(c => {
     const adminUrl = `https://moonlightx.qd.je/admin/#/admin/${c.username}`;
-    const siteUrl  = `https://${c.username}.moonlightx.qd.je/`;
+    const siteUrl  = `https://moonlightx.qd.je/${c.username}/`;
     return `<tr>
       <td><div style="font-weight:700">${escapeHTML(c.name||'—')}</div><div style="font-size:10px;color:var(--mu);font-family:monospace">${escapeHTML(c.id)}</div></td>
       <td>
@@ -1275,7 +1275,7 @@ async function generateClientSiteHTML(clientId) {
 function saShowShareModal(clientId) {
   const c    = saClients.find(x => x.id === clientId); if(!c) return;
   const adminUrl   = `https://moonlightx.qd.je/admin/#/admin/${c.username}`;
-  const siteUrl    = `https://${c.username}.moonlightx.qd.je/`;
+  const siteUrl    = `https://moonlightx.qd.je/${c.username}/`;
 
   document.getElementById('sm-name').textContent       = c.name;
   document.getElementById('sm-admin-url').textContent  = adminUrl;
@@ -1442,7 +1442,7 @@ document.getElementById('sa-cm-username').addEventListener('input', () => {
   let u = document.getElementById('sa-cm-username').value.toLowerCase().replace(/[^a-z0-9-]/g,'');
   document.getElementById('sa-cm-username').value = u;
   document.getElementById('sa-username-preview').innerHTML =
-    u ? `Admin: <span style="color:var(--grn)">https://moonlightx.qd.je/admin/#/admin/${u}</span> &nbsp;|&nbsp; Site: <span style="color:var(--blu)">https://${u}.moonlightx.qd.je/</span>`
+    u ? `Admin: <span style="color:var(--grn)">https://moonlightx.qd.je/admin/#/admin/${u}</span> &nbsp;|&nbsp; Site: <span style="color:var(--blu)">https://moonlightx.qd.je/${u}/</span>`
       : 'Preview: —';
 });
 
@@ -1540,7 +1540,7 @@ document.getElementById('sa-cm-save').addEventListener('click', async () => {
     todayVisits:    existing ? (existing.todayVisits   || 0) : 0,
     totalViews:     existing ? (existing.totalViews    || 0) : 0,
     adminUrl:       'https://moonlightx.qd.je/admin/#/admin/' + username,
-    siteUrl:        'https://' + username + '.moonlightx.qd.je/',
+    siteUrl:        'https://moonlightx.qd.je/' + username + '/',
     hero:           existing?.hero || heroDefaults
   };
 
@@ -1938,7 +1938,7 @@ async function deployToGitHub(clientId) {
     throw new Error(msg);
   }
 
-  const deployedUrl = `https://${c.username}.moonlightx.qd.je/`;
+  const deployedUrl = `https://moonlightx.qd.je/${c.username}/`;
   console.log('[GitHub Deploy] Final Live URL:', deployedUrl);
 
   // Save deployed URL to Firebase
