@@ -9,7 +9,11 @@
       ".write": "auth != null && auth.token.email == 'aryakaran836@gmail.com'"
     },
     "clients": {
-      "$clientId": {
+      ".read": true,
+      ".write": "auth != null",
+      "$username": {
+        ".read": true,
+        ".write": "auth != null",
         "images": {
           ".read": true,
           ".write": "auth != null"
@@ -19,7 +23,7 @@
           ".write": "auth != null"
         },
         "info": {
-          ".read": "auth != null",
+          ".read": true,
           ".write": "auth != null",
           "profile": {
             ".read": true,
@@ -39,6 +43,10 @@
           ".write": true
         }
       }
+    },
+    "withdrawRequests": {
+      ".read": "auth != null",
+      ".write": "auth != null"
     },
     "reports": {
       ".read": "auth != null",

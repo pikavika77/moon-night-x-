@@ -35,25 +35,32 @@ function snapToArray(snap) {
   if (!snap || !snap.exists()) return [];
   const val = snap.val();
   if (Array.isArray(val)) return val.filter(Boolean);
-  if (typeof val === 'object') return Object.values(val).filter(Boolean);
+  if (typeof val === 'object') {
+    return Object.entries(val).map(([k, v]) => {
+      if (v && typeof v === 'object') {
+        return { _key: k, username: k, ...v };
+      }
+      return v;
+    }).filter(Boolean);
+  }
   return [];
 }
 
 // ── STATE ──────────────────────────────────────────────────────────────
-let saClients   = [];
-let clImages    = [];
-let clCats      = [];
-let clClientData= null;
-let saEditId    = null;
-let clEditImgId = null;
-let clEditCatId = null;
-let saActLog    = JSON.parse(localStorage.getItem('sa_log') || '[]');
-let trafficSortField = 'totalVisits';
-let trafficSortAsc   = false;
+let saClients     = [];
+let saWithdrawals = [];
+let clImages      = [];
+let clCats        = [];
+let clClientData  = null;
+let saEditId      = null;
+let clEditImgId   = null;
+let clEditCatId   = null;
+let saActLog      = JSON.parse(localStorage.getItem('sa_log') || '[]');
 
 // ── TOAST ──────────────────────────────────────────────────────────────
 function toast(msg, type='ok') {
   const t = document.getElementById('toast');
+  if (!t) return;
   t.textContent = msg; t.className = 'on ' + type;
   clearTimeout(t._t); t._t = setTimeout(() => t.className = '', 3000);
 }
@@ -71,30 +78,6 @@ function checkAuth() {
   return user;
 }
 
-// ── SAVE CLIENT WITH TIMEOUT ───────────────────────────────────────────
-async function saveClient(data) {
-  const dbRef = ref(db, 'superAdmin/clients/' + data.id);
-  let timeoutId;
-
-  const timeoutPromise = new Promise((_, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new Error("TIMEOUT_ERROR: Firebase Realtime Database write timed out. Check connection or security rules."));
-    }, 6000);
-  });
-
-  try {
-    await Promise.race([
-      set(dbRef, data).then(res => { clearTimeout(timeoutId); return res; }),
-      timeoutPromise
-    ]);
-    return { success: true };
-  } catch (error) {
-    clearTimeout(timeoutId);
-    console.error("saveClient Error details:", error);
-    throw error;
-  }
-}
-
 // ── ROUTER ─────────────────────────────────────────────────────────────
 function getRoute() {
   const hash = window.location.hash || '#/';
@@ -103,11 +86,11 @@ function getRoute() {
 
 function parseRoute(path) {
   const parts = path.split('/').filter(Boolean);
-  if (!parts.length)                             return { type: 'login' };
-  if (parts[0] === 'super')                      return { type: 'super' };
-  if (parts[0] === 'admin' && parts[1])          return { type: 'client', username: parts[1] };
+  if (!parts.length)                    return { type: 'login' };
+  if (parts[0] === 'super')             return { type: 'super' };
+  if (parts[0] === 'admin' && parts[1]) return { type: 'client', username: parts[1] };
   if (parts.length === 1 && parts[0] !== 'super' && parts[0] !== 'admin')
-                                                 return { type: 'site', username: parts[0] };
+                                        return { type: 'site', username: parts[0] };
   return { type: 'login' };
 }
 
@@ -116,36 +99,10 @@ function navigate(path) {
   window.location.hash = '#' + cleanPath;
 }
 
-function getDefaultBase() {
-  // Always return custom domain + /admin
-  return 'https://moonlightx.qd.je/admin';
-}
-
-function getDefaultPublicBase() {
-  // Always return custom domain root
-  return 'https://moonlightx.qd.je';
-}
-
-function getBase() {
-  return 'https://moonlightx.qd.je/admin';
-}
-
-function getPublicBase() {
-  return 'https://moonlightx.qd.je';
-}
-
-function getAppFilesBase() {
-  return 'https://moonlightx.qd.je';
-}
-
-function checkPublicUrlWarning() {
-  const banner = document.getElementById('public-url-banner');
-  if (banner) banner.style.display = 'none'; // auto-detect always works
-}
-
 function getClientSiteUrl(c) {
   if (!c) return '';
-  return `https://moonlightx.qd.je/${c.username}/`;
+  const username = c.username || c.id;
+  return `https://moonlightx.qd.je/${username}`;
 }
 
 // ── AUTH STATE & ROUTE HANDLING ────────────────────────────────────────
@@ -159,22 +116,10 @@ function resetGBtn() {
   try {
     const result = await getRedirectResult(auth);
     if (result?.user) {
-      console.log('Redirect sign-in success:', result.user.email);
-      // Redirect flow completed - process the user
       await handleRoute(result.user);
     }
   } catch(e) {
     console.error('Redirect result error:', e.code, e.message);
-    const msgs = {
-      'auth/unauthorized-domain':   `❌ Add "${location.hostname}" to Firebase Console → Authentication → Settings → Authorized domains.`,
-      'auth/operation-not-allowed': '❌ Enable Google sign-in in Firebase Console → Authentication → Sign-in method → Google.',
-      'auth/account-exists-with-different-credential': '❌ Account exists with different method.',
-    };
-    const msg = msgs[e.code] || ('❌ Sign-in failed: ' + (e.code || e.message));
-    setTimeout(() => {
-      showErr(msg);
-      resetGBtn();
-    }, 500);
   }
 })();
 
@@ -203,10 +148,10 @@ async function handleRoute(user) {
     try {
       let allClients = [];
       try {
-        const snap = await get(ref(db, 'superAdmin/clients'));
+        const snap = await get(ref(db, 'clients'));
         allClients = snapToArray(snap);
       } catch (err) {
-        console.warn("Could not read superAdmin/clients during login check:", err);
+        console.warn("Could not read clients during login check:", err);
       }
 
       const client = allClients.find(c => c.googleEmail && c.googleEmail.toLowerCase() === email);
@@ -219,19 +164,12 @@ async function handleRoute(user) {
         setupLoginUI(route);
         return;
       }
-      if (client.status === 'deleted' || client.status !== 'active' || client.active === false) {
+      if (client.status === 'disabled' || client.status === 'deleted' || client.active === false) {
         await signOut(auth);
-        showErr('❌ Account suspended');
+        showErr('❌ Account suspended or disabled');
         resetGBtn();
         document.getElementById('g-btn').style.display = 'flex';
         setupLoginUI(route);
-        return;
-      }
-      if (!user.emailVerified) {
-        await signOut(auth);
-        showErr('❌ Pehle apni Google email verify karo, phir login karo.');
-        resetGBtn();
-        document.getElementById('g-btn').style.display = 'flex';
         return;
       }
 
@@ -257,37 +195,39 @@ async function handleRoute(user) {
       return;
     }
     showView('super');
-    document.getElementById('sa-email').textContent    = user.email;
-    document.getElementById('sa-set-email').textContent= user.email;
-    saAddLog('login', `✅ Super Admin signed in: ${user.email}`);
+    document.getElementById('sa-email').textContent = user.email;
     saInitDB();
-    checkPublicUrlWarning();
 
   } else if (route.type === 'client') {
     const username = route.username;
 
     let client = null;
     try {
-      const snap = await get(ref(db, 'superAdmin/clients'));
-      const allClients = snapToArray(snap);
-      client = allClients.find(c => c.username === username);
+      const snap = await get(ref(db, 'clients/' + username));
+      if (snap.exists()) {
+        client = snap.val();
+      } else {
+        const snapAll = await get(ref(db, 'clients'));
+        const allClients = snapToArray(snapAll);
+        client = allClients.find(c => c.username === username || c.id === username);
+      }
     } catch (err) {
-      console.warn("Could not fetch superAdmin/clients snapshot:", err);
+      console.warn("Could not fetch client snapshot:", err);
     }
 
     if (!client) {
       await signOut(auth);
       showView('login');
-      showErr('❌ Account not found');
+      showErr('❌ Client account not found');
       resetGBtn();
       document.getElementById('g-btn').style.display = 'flex';
       return;
     }
 
-    if (client.status === 'deleted' || client.status !== 'active' || client.active === false) {
+    if (client.status === 'disabled' || client.status === 'deleted' || client.active === false) {
       await signOut(auth);
       showView('login');
-      showErr('❌ Account suspended');
+      showErr('❌ Account is disabled or suspended');
       resetGBtn();
       document.getElementById('g-btn').style.display = 'flex';
       return;
@@ -305,9 +245,9 @@ async function handleRoute(user) {
     clClientData = client;
     showView('client');
     document.getElementById('cl-email').textContent     = user.email;
-    document.getElementById('cl-site-name').textContent = client.name || 'My Gallery';
-    document.title = (client.name || 'My Gallery') + ' — Admin';
-    clInitDB(client.id);
+    document.getElementById('cl-site-name').textContent = client.displayName || client.name || username;
+    document.title = (client.displayName || client.name || username) + ' — Dashboard';
+    clInitDB(client.username || client.id);
 
   } else if (route.type === 'site') {
     showView('login');
@@ -321,6 +261,7 @@ window.addEventListener('hashchange', () => handleRoute(auth.currentUser));
 function showView(name) {
   ['login','super','client'].forEach(v => {
     const el = document.getElementById('view-' + v);
+    if (!el) return;
     if (v === name) {
       el.style.display     = 'flex';
       el.style.flexDirection = 'column';
@@ -331,8 +272,10 @@ function showView(name) {
   });
   if (name === 'login') {
     const lw = document.getElementById('view-login');
-    lw.style.alignItems     = 'center';
-    lw.style.justifyContent = 'center';
+    if (lw) {
+      lw.style.alignItems     = 'center';
+      lw.style.justifyContent = 'center';
+    }
   }
 }
 
@@ -344,18 +287,13 @@ function setupLoginUI(route) {
   if (route.type === 'client' && route.username) {
     badge.className = 'lbadge client';
     badge.textContent = 'CLIENT ACCESS';
-    sub.textContent   = 'Client Admin Panel';
-    info.innerHTML    = `Sign in with your authorized Google account<br>to access panel for <strong>${escapeHTML(route.username)}</strong>`;
+    sub.textContent   = 'Client Dashboard';
+    info.innerHTML    = `Sign in with your Google account to access <strong>${escapeHTML(route.username)}</strong>`;
   } else if (route.type === 'super') {
     badge.className   = 'lbadge owner';
     badge.textContent = 'SUPER ADMIN';
     sub.textContent   = 'Owner Control Panel';
     info.innerHTML    = `Only <strong>${OWNER}</strong> can access this panel`;
-  } else if (route.type === 'site' && route.username) {
-    badge.className   = 'lbadge client';
-    badge.textContent = 'CLIENT ACCESS';
-    sub.textContent   = 'Client Panel';
-    info.innerHTML    = `Sign in with your authorized Google account<br>to access <strong>${escapeHTML(route.username)}</strong>'s admin panel`;
   } else {
     badge.className   = 'lbadge owner';
     badge.textContent = 'ADMIN';
@@ -366,52 +304,45 @@ function setupLoginUI(route) {
 
 function showErr(msg) {
   const el = document.getElementById('l-err');
+  if (!el) return;
   el.innerHTML = msg;
   el.style.display = 'block';
 }
 
 // ── GOOGLE LOGIN ────────────────────────────────────────────────────────
-document.getElementById('g-btn').addEventListener('click', async () => {
+document.getElementById('g-btn')?.addEventListener('click', async () => {
   const btn = document.getElementById('g-btn');
-  btn.innerHTML = '⏳ Signing in with Google...';
+  btn.innerHTML = '⏳ Signing in...';
   btn.disabled  = true;
   document.getElementById('l-err').style.display = 'none';
   try {
     await signInWithPopup(auth, gp);
   } catch(e) {
-    console.warn('Popup sign-in failed/blocked:', e.code, e.message);
     if (e.code === 'auth/popup-closed-by-user') {
       resetGBtn();
       return;
     }
-
     try {
-      btn.innerHTML = '⏳ Redirecting to Google...';
+      btn.innerHTML = '⏳ Redirecting...';
       await signInWithRedirect(auth, gp);
     } catch(err2) {
-      const msgs = {
-        'auth/unauthorized-domain':   `❌ Add "${location.hostname}" to Firebase → Authentication → Authorized domains.`,
-        'auth/operation-not-allowed': '❌ Enable Google sign-in in Firebase Console.',
-        'auth/network-request-failed':'❌ Network error. Check connection.',
-      };
-      showErr(msgs[err2.code] || ('❌ ' + (err2.code || err2.message)));
+      showErr('❌ Sign in failed: ' + (err2.code || err2.message));
       resetGBtn();
     }
   }
 });
 
 async function doLogout() {
-  saAddLog('login', '🚪 Signed out');
   await signOut(auth);
   window.location.hash = '#/';
 }
-document.getElementById('sa-btn-logout').addEventListener('click', doLogout);
-document.getElementById('sa-btn-logout2').addEventListener('click', doLogout);
-document.getElementById('cl-btn-logout').addEventListener('click', doLogout);
-document.getElementById('cl-btn-logout2').addEventListener('click', doLogout);
+document.getElementById('sa-btn-logout')?.addEventListener('click', doLogout);
+document.getElementById('sa-btn-logout2')?.addEventListener('click', doLogout);
+document.getElementById('cl-btn-logout')?.addEventListener('click', doLogout);
+document.getElementById('cl-btn-logout2')?.addEventListener('click', doLogout);
 
 // ══════════════════════════════════════════════════════════════════════
-// ── SUPER ADMIN ────────────────────────────────────────────────────────
+// ── SUPER ADMIN NAVIGATION & PAGES ─────────────────────────────────────
 // ══════════════════════════════════════════════════════════════════════
 
 function saShowPage(name) {
@@ -419,60 +350,11 @@ function saShowPage(name) {
   document.querySelectorAll('[data-sa-page]').forEach(i => i.classList.remove('on'));
   document.getElementById('sa-page-' + name)?.classList.add('on');
   document.querySelector(`[data-sa-page="${name}"]`)?.classList.add('on');
-  if(name === 'activity')     saRenderLog();
-  if(name === 'revenue')      saRenderRevenue();
-  if(name === 'traffic')      saRenderTraffic();
-  if(name === 'settings')     saLoadSettings();
-  if(name === 'site-gallery') saInitGlobalSite();
-  if(name === 'site-ads')     saInitGlobalSite();
-  if(name === 'reports')      saInitReports();
-  if(name === 'all-galleries') saInitAllGalleries();
-  if(name === 'hero')         saLoadHero();
+
+  if (name === 'client-earnings') saRenderEarningsTable();
+  if (name === 'withdrawals')     saRenderWithdrawalsTable();
 }
 
-async function saLoadHero() {
-  try {
-    const snap = await get(ref(db, 'superAdmin/settings/globalHero'));
-    if (snap.exists()) {
-      const h = snap.val();
-      if (document.getElementById('sa-hero-title'))    document.getElementById('sa-hero-title').value = h.title || '';
-      if (document.getElementById('sa-hero-subtitle')) document.getElementById('sa-hero-subtitle').value = h.subtitle || '';
-      if (document.getElementById('sa-hero-btn'))      document.getElementById('sa-hero-btn').value = h.buttonText || '';
-      if (document.getElementById('sa-hero-bg'))       document.getElementById('sa-hero-bg').value = h.bgImage || '';
-    }
-  } catch(e) {
-    console.warn('saLoadHero error:', e);
-  }
-}
-
-async function saSaveHero() {
-  const statusEl = document.getElementById('sa-hero-status');
-  const heroData = {
-    title:      document.getElementById('sa-hero-title')?.value.trim() || '',
-    subtitle:   document.getElementById('sa-hero-subtitle')?.value.trim() || '',
-    buttonText: document.getElementById('sa-hero-btn')?.value.trim() || '',
-    bgImage:    document.getElementById('sa-hero-bg')?.value.trim() || ''
-  };
-  try {
-    await set(ref(db, 'superAdmin/settings/globalHero'), heroData);
-    await set(ref(db, 'globalSite/hero'), heroData).catch(() => {});
-    if (statusEl) {
-      statusEl.style.display = 'block';
-      statusEl.style.color = 'var(--grn)';
-      statusEl.textContent = '✅ Global Hero Section saved successfully!';
-      setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
-    }
-    toast('✅ Global Hero saved!');
-    saAddLog('edit', 'Updated Global Hero Section');
-  } catch(e) {
-    if (statusEl) {
-      statusEl.style.display = 'block';
-      statusEl.style.color = 'var(--red)';
-      statusEl.textContent = '❌ ' + e.message;
-    }
-    toast('❌ ' + e.message, 'err');
-  }
-}
 document.querySelectorAll('[data-sa-page]').forEach(el =>
   el.addEventListener('click', () => saShowPage(el.dataset.saPage)));
 document.querySelectorAll('[data-sa-goto]').forEach(el =>
@@ -483,1065 +365,222 @@ function saAddLog(type, msg) {
   saActLog.unshift({ type, msg, t: new Date().toISOString() });
   if(saActLog.length > 300) saActLog = saActLog.slice(0, 300);
   localStorage.setItem('sa_log', JSON.stringify(saActLog));
-  document.getElementById('sa-nb-log').textContent = saActLog.length;
-  saRenderLog(); saRenderDashLog();
+  saRenderLog();
 }
 function saLogHTML(e) {
   const d = new Date(e.t);
-  const colors = { add:'var(--grn)', edit:'var(--blu)', del:'var(--red)', login:'var(--ylw)' };
   return `<div style="display:flex;gap:11px;padding:11px 18px;border-bottom:1px solid var(--br)">
-    <div style="width:7px;height:7px;border-radius:50%;background:${colors[e.type]||'#888'};margin-top:5px;flex-shrink:0"></div>
     <div><div style="font-size:12px;font-weight:600">${escapeHTML(e.msg)}</div>
     <div style="font-size:10px;color:var(--mu);font-family:monospace;margin-top:2px">${d.toLocaleDateString()} ${d.toLocaleTimeString()}</div></div>
   </div>`;
 }
 function saRenderLog() {
-  const f  = document.getElementById('sa-log-filter')?.value || '';
   const el = document.getElementById('sa-log-list');
-  const list = f ? saActLog.filter(e => e.type === f) : saActLog;
-  el.innerHTML = list.length ? list.map(saLogHTML).join('')
-    : '<div class="empty"><div class="eic">📋</div>No activity</div>';
-}
-function saRenderDashLog() {
-  document.getElementById('sa-dash-log').innerHTML =
-    saActLog.slice(0,5).map(saLogHTML).join('') ||
-    '<div class="empty"><div class="eic">📋</div>No activity yet</div>';
+  if (el) el.innerHTML = saActLog.length ? saActLog.map(saLogHTML).join('') : '<div class="empty">No activity</div>';
 }
 
-// DB
+// ── REALTIME FIREBASE DB INIT ──────────────────────────────────────────
 function saInitDB() {
-  // Auto-load public site URL from Firebase settings
-  // Load saved URLs from Firebase
-  get(ref(db, 'superAdmin/settings')).then(snap => {
-    if (!snap.exists()) return;
-    const settings = snap.val();
-    if (settings.publicUrl) {
-      const pubUrl = settings.publicUrl.trim().replace(/\/+$/, '');
-      localStorage.setItem('mnx_public_url', pubUrl);
-      const field = document.getElementById('sa-public-url');
-      if (field) field.value = pubUrl;
-    }
-    if (settings.appFilesUrl) {
-      const appUrl = settings.appFilesUrl.trim().replace(/\/+$/, '');
-      localStorage.setItem('mnx_app_files_url', appUrl);
-      const field = document.getElementById('sa-app-files-url');
-      if (field) field.value = appUrl;
-    }
-    checkPublicUrlWarning();
-  }).catch(() => {});
-
-  onValue(ref(db, 'superAdmin/clients'), snap => {
+  // Realtime listener on clients node
+  onValue(ref(db, 'clients'), snap => {
     saClients = snapToArray(snap);
-    document.getElementById('sa-db-st').textContent   = 'Live';
+    document.getElementById('sa-db-st').textContent = 'Live';
     document.getElementById('sa-nb-clients').textContent = saClients.length;
     saUpdateDash();
     saRenderClients();
-    saPopulateEarnSelect();
+    saRenderEarningsTable();
   }, err => {
-    console.error('saInitDB error:', err);
+    console.error('saInitDB clients error:', err);
     document.getElementById('sa-db-st').textContent = 'Error';
   });
-}
 
-// ── GLOBAL SITE GALLERY & ADS ────────────────────────────────────────────
-let globalImages = [], globalSiteCats = [];
-let _globalSiteListening = false; // guard: prevents duplicate onValue listeners
-
-function saInitGlobalSite() {
-  // Only register Firebase realtime listeners once
-  if (!_globalSiteListening) {
-    _globalSiteListening = true;
-    onValue(ref(db, 'globalSite/images'), snap => {
-      globalImages = snapToArray(snap);
-      saRenderGlobalGallery();
-    });
-    onValue(ref(db, 'globalSite/categories'), snap => {
-      globalSiteCats = snapToArray(snap);
-      saRenderGlobalCats();
-      saPopulateGlobalCatSelect();
-    });
-  } else {
-    // Re-render with already-loaded data when switching between site-gallery/site-ads
-    saRenderGlobalGallery();
-    saRenderGlobalCats();
-    saPopulateGlobalCatSelect();
-  }
-  // Load ads
-  get(ref(db, 'superAdmin/settings/globalAds')).then(snap => {
-    if (!snap.exists()) return;
-    const ads = snap.val();
-    ['popunder','banner728','banner320','box300','smart'].forEach(k => {
-      const el = document.getElementById('sa-gad-' + k);
-      if (el) el.value = ads[k] || '';
-    });
-  }).catch(() => {});
-  // Load site profile
-  get(ref(db, 'superAdmin/settings/siteProfile')).then(snap => {
-    if (!snap.exists()) return;
-    const p = snap.val();
-    ['name','bio','avatar'].forEach(k => {
-      const el = document.getElementById('sa-sp-' + k);
-      if (el) el.value = p[k] || '';
-    });
-  }).catch(() => {});
-}
-
-function saRenderGlobalGallery() {
-  const el = document.getElementById('sa-global-img-grid');
-  if (!el) return;
-  el.innerHTML = globalImages.length
-    ? globalImages.map(img => `
-      <div style="background:var(--s1);border:1px solid var(--br);border-radius:12px;overflow:hidden">
-        <img src="${escapeHTML(img.thumb||img.thumbnail||img.url||'')}" style="width:100%;height:130px;object-fit:cover;display:block" onerror="this.style.display='none'"/>
-        <div style="padding:8px 10px">
-          <div style="font-weight:700;font-size:11px;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHTML(img.title||img.id||'—')}</div>
-          <div style="font-size:10px;color:var(--mu);margin-bottom:6px">${escapeHTML(img.category||'general')}</div>
-          <button class="btn btn-d btn-xs" style="width:100%" onclick="saDelGlobalImg('${escapeHTML(img.id)}')">🗑 Delete</button>
-        </div>
-      </div>`).join('')
-    : '<div class="empty" style="grid-column:1/-1"><div class="eic">🖼️</div>Koi image nahi — "Add Image" se add karo</div>';
-  document.getElementById('sa-global-img-count').textContent = globalImages.length;
-}
-
-function saRenderGlobalCats() {
-  const el = document.getElementById('sa-global-cat-list');
-  if (!el) return;
-  el.innerHTML = globalSiteCats.length
-    ? globalSiteCats.map(c => `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:var(--bg);border:1px solid var(--br);border-radius:8px;margin-bottom:6px">
-        <span style="font-size:12px;font-weight:700">${escapeHTML(c.name||c.id)}</span>
-        <button class="btn btn-d btn-xs" onclick="saDelGlobalCat('${escapeHTML(c.id)}')">🗑</button>
-      </div>`).join('')
-    : '<div style="color:var(--mu);font-size:12px">Koi category nahi</div>';
-}
-
-function saPopulateGlobalCatSelect() {
-  const sel = document.getElementById('sa-gadd-cat');
-  if (!sel) return;
-  const cur = sel.value;
-  sel.innerHTML = '<option value="general">General</option>' +
-    globalSiteCats.map(c => `<option value="${escapeHTML(c.id)}">${escapeHTML(c.name||c.id)}</option>`).join('');
-  if (cur) sel.value = cur;
-}
-
-function prefillImageDefaults() {
-  const views = Math.floor(Math.random() * 49000) + 1000;
-  const likes = Math.floor(views * 0.1);
-  const comments = Math.floor(views * 0.01);
-
-  const set = (id, val) => {
-    const el = document.getElementById(id);
-    if (el && !el.value) el.value = val;
-  };
-
-  set('cl-img-views',      views);
-  set('cl-img-likes',      likes);
-  set('cl-img-comments',   comments);
-  set('cl-img-resolution', '3830x5126');
-  set('cl-img-format',     'WebP (Optimized)');
-  set('cl-img-filesize',   '45');
-  set('cl-img-compliance', '18+ Consenting Adult');
-  set('cl-img-tags',       'glamour, hd, premium, 18+');
-
-  set('cl-m-views',      views);
-  set('cl-m-likes',      likes);
-  set('cl-m-comments',   comments);
-  set('cl-m-res',        '3830x5126');
-  set('cl-m-fmt',        'WebP (Optimized)');
-  set('cl-m-size',       '45');
-  set('cl-m-compliance', '18+ Consenting Adult');
-  set('cl-m-tags',       'glamour, hd, premium, 18+');
-
-  set('sa-gadd-views',      views);
-  set('sa-gadd-likes',      likes);
-  set('sa-gadd-comments',   comments);
-  set('sa-gadd-resolution', '3830x5126');
-  set('sa-gadd-format',     'WebP (Optimized)');
-  set('sa-gadd-filesize',   '45');
-  set('sa-gadd-compliance', '18+ Consenting Adult');
-  set('sa-gadd-tags',       'glamour, hd, premium, 18+');
-
-  // Category default: first available option
-  ['cl-m-cat', 'sa-gadd-cat'].forEach(catId => {
-    const el = document.getElementById(catId);
-    if (el && el.options && el.options.length > 0) {
-      if (!el.value || el.value === 'general') {
-        el.value = el.options[0].value;
-      }
+  // Realtime listener on withdrawRequests node
+  onValue(ref(db, 'withdrawRequests'), snap => {
+    saWithdrawals = [];
+    if (snap.exists()) {
+      const val = snap.val();
+      saWithdrawals = Object.entries(val).map(([id, w]) => ({ reqId: id, ...w }));
     }
+    const pendingCount = saWithdrawals.filter(w => w.status === 'pending').length;
+    const nb = document.getElementById('sa-nb-withdrawals');
+    if (nb) nb.textContent = pendingCount;
+    saRenderWithdrawalsTable();
+  }, err => {
+    console.warn('withdrawRequests listener error:', err);
   });
 }
 
-function autoDeriveModel(titleId, modelId) {
-  const titleEl = document.getElementById(titleId);
-  const modelEl = document.getElementById(modelId);
-  if (!titleEl || !modelEl) return;
-  const title = titleEl.value.trim();
-  if (!title) return;
-  const firstWord = title.split(/\s+/)[0].replace(/[^a-zA-Z0-9]/g, '');
-  if (firstWord && (!modelEl.value || modelEl.value.startsWith('Model:'))) {
-    modelEl.value = 'Model: ' + firstWord;
-  }
-}
-
-async function saAddGlobalImg() {
-  const title    = document.getElementById('sa-gadd-title')?.value.trim();
-  const thumb    = document.getElementById('sa-gadd-thumb')?.value.trim();
-  const hires    = document.getElementById('sa-gadd-hires')?.value.trim()||'';
-  const watchUrl = document.getElementById('sa-gadd-watch')?.value.trim()||'';
-  const downloadUrl = document.getElementById('sa-gadd-download')?.value.trim()||'';
-  const cat      = document.getElementById('sa-gadd-cat')?.value||'general';
-  const desc     = document.getElementById('sa-gadd-desc')?.value.trim()||'';
-  const views    = parseInt(document.getElementById('sa-gadd-views')?.value) || 0;
-  const likes    = parseInt(document.getElementById('sa-gadd-likes')?.value) || 0;
-  const comments = parseInt(document.getElementById('sa-gadd-comments')?.value) || 0;
-  const resolution = document.getElementById('sa-gadd-resolution')?.value.trim() || '3830x5126';
-  const format   = document.getElementById('sa-gadd-format')?.value.trim() || 'WebP (Optimized)';
-  const filesize = document.getElementById('sa-gadd-filesize')?.value.trim() || '45';
-  const compliance = document.getElementById('sa-gadd-compliance')?.value.trim() || '18+ Consenting Adult';
-  const tagsStr  = document.getElementById('sa-gadd-tags')?.value.trim() || 'glamour, hd, premium, 18+';
-  const tags     = tagsStr.split(',').map(s=>s.trim()).filter(Boolean);
-
-  if (!title||!thumb) { toast('⚠️ Title aur Thumbnail URL zaroori hain!','warn'); return; }
-  const id = 'img-' + Date.now();
-  try {
-    await set(ref(db, `globalSite/images/${id}`), {
-      id, title, thumb, thumbnail:thumb, hires:hires||thumb, url:thumb, watchUrl, downloadUrl,
-      category:cat, description:desc, views, likes, comments, resolution, format, filesize, compliance, tags,
-      createdAt:new Date().toISOString()
-    });
-    ['sa-gadd-title','sa-gadd-thumb','sa-gadd-hires','sa-gadd-watch','sa-gadd-download','sa-gadd-desc','sa-gadd-views','sa-gadd-likes','sa-gadd-comments','sa-gadd-resolution','sa-gadd-format','sa-gadd-filesize','sa-gadd-compliance','sa-gadd-tags'].forEach(k => { const e=document.getElementById(k); if(e) e.value=''; });
-    document.getElementById('sa-global-add-modal').style.display='none';
-    toast('✅ Image add ho gayi!');
-    saAddLog('add','Global site image added: '+title);
-  } catch(e) { toast('❌ '+e.message,'err'); }
-}
-
-async function saDelGlobalImg(id) {
-  if (!confirm('Yeh image delete karein?')) return;
-  try { await remove(ref(db, `globalSite/images/${id}`)); toast('✅ Deleted!'); } catch(e) { toast('❌ '+e.message,'err'); }
-}
-
-async function saAddGlobalCat() {
-  const name = document.getElementById('sa-gcat-name')?.value.trim();
-  if (!name) { toast('⚠️ Category naam daalo!','warn'); return; }
-  const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
-  try {
-    await set(ref(db, `globalSite/categories/${id}`), { id, name, createdAt:new Date().toISOString() });
-    document.getElementById('sa-gcat-name').value='';
-    toast('✅ Category add ho gayi!');
-  } catch(e) { toast('❌ '+e.message,'err'); }
-}
-
-async function saDelGlobalCat(id) {
-  if (!confirm('Category delete karein?')) return;
-  try { await remove(ref(db, `globalSite/categories/${id}`)); toast('✅ Deleted!'); } catch(e) { toast('❌ '+e.message,'err'); }
-}
-
-async function saSaveGlobalAds() {
-  const ads = { popunder:'', banner728:'', banner320:'', box300:'', smart:'' };
-  Object.keys(ads).forEach(k => { ads[k] = document.getElementById('sa-gad-'+k)?.value.trim()||''; });
-  try {
-    await set(ref(db,'superAdmin/settings/globalAds'), ads);
-    toast('✅ Ads save ho gaye! Real site pe turant apply honge.');
-    saAddLog('edit','Global site ads updated');
-  } catch(e) { toast('❌ '+e.message,'err'); }
-}
-
-async function saSaveSiteProfile() {
-  const p = { name: document.getElementById('sa-sp-name')?.value.trim()||'Moon Light X', bio: document.getElementById('sa-sp-bio')?.value.trim()||'', avatar: document.getElementById('sa-sp-avatar')?.value.trim()||'' };
-  try {
-    await set(ref(db,'superAdmin/settings/siteProfile'), p);
-    toast('✅ Site profile save ho gaya!');
-  } catch(e) { toast('❌ '+e.message,'err'); }
-}
-
-const COLORS = ['#E02424','#3b82f6','#22c55e','#f59e0b','#a855f7','#06b6d4','#ec4899','#f97316'];
-
 function saUpdateDash() {
-  const active   = saClients.filter(c => c.status === 'active').length;
-  const totalRev = saClients.reduce((a,c) => a+(c.totalEarning||0), 0);
-  const payout   = saClients.reduce((a,c) => a+(c.totalEarning||0)*(c.earningPercent||40)/100, 0);
-  const visits   = saClients.reduce((a,c) => a+(c.totalVisits||0), 0);
-  const today    = saClients.reduce((a,c) => a+(c.todayVisits||0), 0);
+  const activeCount = saClients.filter(c => c.status === 'active' || c.active !== false).length;
+  const totalRev    = saClients.reduce((a,c) => a + Number(c.earnings || c.totalEarning || 0), 0);
+  const totalVisits = saClients.reduce((a,c) => a + Number(c.totalViews || c.totalVisits || 0), 0);
+  const todayVisits = saClients.reduce((a,c) => a + Number(c.today || c.todayVisits || 0), 0);
 
   document.getElementById('sa-d-clients').textContent = saClients.length;
-  document.getElementById('sa-d-active').textContent  = active;
-  document.getElementById('sa-d-rev').textContent     = '₹' + totalRev.toFixed(0);
-  document.getElementById('sa-d-mine').textContent    = '₹' + (totalRev-payout).toFixed(0);
-  document.getElementById('sa-d-traffic').textContent = visits.toLocaleString();
-  document.getElementById('sa-d-today').textContent   = today.toLocaleString();
-
-  const max = Math.max(...saClients.map(c=>c.totalEarning||0), 1);
-  document.getElementById('sa-rev-chart').innerHTML = saClients.length
-    ? saClients.map((c,i) => `
-        <div class="bwrp">
-          <div class="bval">₹${(c.totalEarning||0).toFixed(0)}</div>
-          <div class="bbar" style="height:${Math.max(((c.totalEarning||0)/max)*80,3)}px;background:${COLORS[i%COLORS.length]}"></div>
-          <div class="blbl">${escapeHTML((c.name||'').slice(0,8))}</div>
-        </div>`).join('')
-    : '<div style="color:var(--mu);font-size:12px;margin:auto">No clients yet</div>';
+  document.getElementById('sa-d-active').textContent  = activeCount;
+  document.getElementById('sa-d-rev').textContent     = '$' + totalRev.toFixed(2);
+  document.getElementById('sa-d-traffic').textContent = totalVisits.toLocaleString();
+  document.getElementById('sa-d-today').textContent   = todayVisits.toLocaleString();
 
   document.getElementById('sa-dash-clients').innerHTML = saClients.map(c => {
-    const adminUrl = `https://moonlightx.qd.je/admin/#/admin/${c.username}`;
-    const siteUrl  = `https://moonlightx.qd.je/${c.username}/`;
+    const username = c.username || c.id;
+    const url = `https://moonlightx.qd.je/${username}`;
     return `
     <tr>
-      <td style="font-weight:700">${escapeHTML(c.name||'—')}</td>
+      <td style="font-weight:700">${escapeHTML(c.displayName || c.name || username)}</td>
       <td>
-        <div style="font-family:monospace;font-size:11px;color:var(--mu)">${escapeHTML(c.username||'—')}</div>
-        <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">
-          <a href="${adminUrl}" target="_blank" class="tag grn" style="text-decoration:none">⚙️ Admin</a>
-          <a href="${siteUrl}" target="_blank" class="tag blu" style="text-decoration:none">🌐 Site</a>
-        </div>
+        <a href="${url}" target="_blank" style="color:var(--blu);font-size:11px;font-family:monospace">${url}</a>
       </td>
-      <td><span class="tag ${c.status==='active'?'grn':'mu'}">${escapeHTML(c.status||'inactive')}</span></td>
-      <td style="font-size:11px">${(c.totalVisits||0).toLocaleString()}</td>
-      <td style="color:var(--grn);font-weight:700">₹${(c.totalEarning||0).toFixed(0)}</td>
-      <td>${c.earningPercent||40}%</td>
+      <td><span class="tag ${c.status==='disabled'?'mu':'grn'}">${escapeHTML(c.status || 'active')}</span></td>
+      <td>${(c.totalViews || 0).toLocaleString()}</td>
+      <td style="color:var(--grn);font-weight:700">$${Number(c.earnings || 0).toFixed(2)}</td>
+      <td>
+        <button class="btn btn-g btn-xs" onclick="saCopyClientUrl('${escapeHTML(username)}')">📋 Copy URL</button>
+      </td>
     </tr>`;
-  }).join('') || '<tr><td colspan="6"><div class="empty"><div class="eic">👥</div>No clients</div></td></tr>';
-
-  saRenderDashLog();
+  }).join('') || '<tr><td colspan="6"><div class="empty">No clients</div></td></tr>';
 }
 
+// ── CLIENT MANAGEMENT UI ───────────────────────────────────────────────
 function saRenderClients() {
-  const q    = (document.getElementById('sa-q-client')?.value||'').toLowerCase();
-  const list = saClients.filter(c => !q || (c.name||'').toLowerCase().includes(q) || (c.username||'').toLowerCase().includes(q));
+  const q = (document.getElementById('sa-q-client')?.value || '').toLowerCase();
+  const list = saClients.filter(c => {
+    const un = (c.username || c.id || '').toLowerCase();
+    const dn = (c.displayName || c.name || '').toLowerCase();
+    return !q || un.includes(q) || dn.includes(q);
+  });
 
-  document.getElementById('sa-clients-foot').textContent = `${list.length} of ${saClients.length} clients`;
-  document.getElementById('sa-clients-tbody').innerHTML = list.length ? list.map(c => {
-    const adminUrl = `https://moonlightx.qd.je/admin/#/admin/${c.username}`;
-    const siteUrl  = `https://moonlightx.qd.je/${c.username}/`;
+  const foot = document.getElementById('sa-clients-foot');
+  if (foot) foot.textContent = `${list.length} of ${saClients.length} clients`;
+
+  const tbody = document.getElementById('sa-clients-tbody');
+  if (!tbody) return;
+
+  tbody.innerHTML = list.length ? list.map(c => {
+    const username     = c.username || c.id;
+    const displayName  = c.displayName || c.name || username;
+    const clientId     = c.clientId || (username + '001');
+    const adsterraPSID = c.adsterraPSID || c.psid || clientId;
+    const status       = c.status || (c.active !== false ? 'active' : 'disabled');
+    const url          = `https://moonlightx.qd.je/${username}`;
+
     return `<tr>
-      <td><div style="font-weight:700">${escapeHTML(c.name||'—')}</div><div style="font-size:10px;color:var(--mu);font-family:monospace">${escapeHTML(c.id)}</div></td>
+      <td><strong style="color:var(--tx)">${escapeHTML(username)}</strong></td>
+      <td style="font-weight:600">${escapeHTML(displayName)}</td>
+      <td><code style="font-size:11px;background:var(--s2);padding:2px 6px;border-radius:4px">${escapeHTML(clientId)}</code></td>
+      <td><code style="font-size:11px;background:var(--s2);padding:2px 6px;border-radius:4px;color:var(--ylw)">${escapeHTML(adsterraPSID)}</code></td>
+      <td><span class="tag ${status==='disabled'?'mu':'grn'}">${escapeHTML(status)}</span></td>
       <td>
-        <div style="font-size:11px;font-family:monospace;color:var(--mu);font-weight:700">${escapeHTML(c.username||'—')}</div>
-        <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">
-          <a href="${adminUrl}" target="_blank" class="tag grn" style="text-decoration:none">⚙️ Admin Panel</a>
-          <a href="${siteUrl}" target="_blank" class="tag blu" style="text-decoration:none">🌐 Real Site</a>
+        <div style="font-size:11px;font-family:monospace;color:var(--blu);margin-bottom:2px">${url}</div>
+        <button class="btn btn-g btn-xs" onclick="saCopyClientUrl('${escapeHTML(username)}')">📋 Copy URL</button>
+      </td>
+      <td>
+        <div class="arow">
+          <button class="btn btn-g btn-xs" onclick="saOpenEditClient('${escapeHTML(username)}')">✏️ Edit</button>
+          <button class="btn ${status==='disabled'?'btn-grn':'btn-g'} btn-xs" onclick="saToggleDisableClient('${escapeHTML(username)}')">${status==='disabled'?'✅ Enable':'⏸️ Disable'}</button>
+          <button class="btn btn-d btn-xs" onclick="saDeleteClient('${escapeHTML(username)}')">🗑 Delete</button>
         </div>
       </td>
-      <td style="font-size:11px">${escapeHTML(c.googleEmail||'—')}</td>
-      <td><span class="tag ${c.status==='active'?'grn':'mu'}">${escapeHTML(c.status||'inactive')}</span></td>
-      <td style="color:var(--red);font-weight:700">${c.earningPercent||40}%</td>
-      <td style="color:var(--grn);font-weight:700">₹${(c.totalEarning||0).toFixed(0)}</td>
-      <td><div class="arow">
-        <button class="btn btn-grn btn-xs" data-share="${escapeHTML(c.id)}">📤 Share</button>
-        <button class="btn btn-g btn-xs" data-edit="${escapeHTML(c.id)}">✏️</button>
-        <button class="btn btn-d btn-xs" data-del="${escapeHTML(c.id)}" data-dname="${escapeHTML(c.name||'')}">🗑</button>
-      </div></td>
     </tr>`;
   }).join('')
-  : '<tr><td colspan="7"><div class="empty"><div class="eic">👥</div>No clients</div></td></tr>';
-
-  document.querySelectorAll('[data-share]').forEach(btn => btn.addEventListener('click', () => saShowShareModal(btn.dataset.share)));
-  document.querySelectorAll('[data-edit]').forEach(btn  => btn.addEventListener('click', () => saOpenEdit(btn.dataset.edit)));
-  document.querySelectorAll('[data-del]').forEach(btn   => btn.addEventListener('click', () => saDeleteClient(btn.dataset.del, btn.dataset.dname)));
+  : '<tr><td colspan="7"><div class="empty">No clients found</div></td></tr>';
 }
+
 document.getElementById('sa-q-client')?.addEventListener('input', saRenderClients);
 
-// ── REAL SITE GENERATION ───────────────────────────────────────────────
-async function generateClientSiteHTML(clientId) {
-  const c = saClients.find(x => x.id === clientId) || {};
-  let profile = {};
-  let hero = {};
-  try {
-    const snap = await get(ref(db, `clients/${clientId}/info/profile`));
-    if (snap.exists()) profile = snap.val();
-  } catch(e) {}
-  try {
-    const hSnap = await get(ref(db, `clients/${clientId}/info/hero`));
-    if (hSnap.exists()) hero = hSnap.val();
-  } catch(e) {}
-
-  const id        = c.id || clientId;
-  const name      = c.name || 'Gallery';
-  const bio       = profile.bio       || c.bio       || '';
-  const avatar    = profile.avatar    || c.avatar    || '';
-  const instagram = profile.instagram || c.instagram || '';
-  const telegram  = profile.telegram  || c.telegram  || '';
-
-  const adPopunder  = c.adPopunder  || '';
-  const adBanner728 = c.adBanner728 || '';
-  const adBanner320 = c.adBanner320 || '';
-  const adBox300    = c.adBox300    || '';
-  const adSmart     = c.adSmart     || '';
-
-  const heroTitle = hero.title || c.hero?.title || `${name} Premium HD Showcase`;
-  const heroSubtitle = hero.subtitle || c.hero?.subtitle || `Exclusive high resolution curated adult gallery photography for ${name}.`;
-  const heroBtnText = hero.buttonText || c.hero?.buttonText || `View Featured Gallery`;
-  const heroBg = hero.bgImage || c.hero?.bgImage || '';
-
-  const esc = v => JSON.stringify(v || '');
-
-  // Generated client site — globals set synchronously BEFORE app.js loads
-  return `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>${name.replace(/</g,'&lt;')} — Premium 18+ Gallery</title>
-  <link rel="icon" type="image/png" href="https://moonlightx.qd.je/favicon.png">
-  <meta name="description" content="${name.replace(/"/g,'&quot;')} – premium curated 18+ adult gallery. Fast, mobile-first platform with HD photography. Adults 18+ only.">
-  <meta name="robots" content="noindex,nofollow">
-  <meta name="theme-color" content="#050505">
-  <link rel="preload" href="https://moonlightx.qd.je/app.js" as="script">
-  <link rel="stylesheet" href="https://moonlightx.qd.je/app.css">
-  <style>
-    /* Hide Adsterra placeholder labels */
-    [class*="adsterra-placeholder"],
-    [class*="ad-placeholder"],
-    [class*="advertisement-label"] {
-      display: none !important;
-    }
-
-
-
-    /* Target the specific label structure React renders */
-    .adsterra-top-leaderboard > div:first-child:not(iframe):not(script),
-    .adsterra-native-incontent > div:first-child:not(iframe):not(script),
-    .adsterra-mobile-sticky > div:first-child:not(iframe):not(script),
-    .adsterra-bottom-footer > div:first-child:not(iframe):not(script) {
-      display: none !important;
-    }
-
-    /* Hide any div that only contains placeholder text */
-    #adsterra-top-leaderboard > div:not(:has(iframe)):not(:has(ins)),
-    #adsterra-native-incontent > div:not(:has(iframe)):not(:has(ins)),
-    #adsterra-sidebar-skyscraper > div:not(:has(iframe)):not(:has(ins)),
-    #adsterra-mobile-sticky > div:not(:has(iframe)):not(:has(ins)),
-    #adsterra-bottom-footer > div:not(:has(iframe)):not(:has(ins)) {
-      display: none !important;
-    }
-
-    /* Ensure no text or header elements above ads are displayed */
-    [class*="ADVERTISEMENT"],
-    div:has(> button[title*="Adsterra"]) {
-      display: none !important;
-    }
-  </style>
-  <script src="https://moonlightx.qd.je/app.js" defer><\/script>
-
-  <!-- STEP 1: Set globals synchronously & fast prefetch -->
-  <script>
-    var hash = window.location.hash || '';
-    var parts = hash.split('/');
-    var directImgId = parts[2] || '';
-    if (directImgId) {
-      window.__mlxDirectImageId = directImgId;
-    }
-
-    window.__mlxImgPath    = 'clients/${id}/images';
-    window.__mlxCatPath    = 'clients/${id}/categories';
-    window.__mlxClientId   = ${esc(id)};
-    window.__mlxClientName = ${esc(name)};
-    window.__mlxProfile    = {
-      bio:       ${esc(bio)},
-      avatar:    ${esc(avatar)},
-      instagram: ${esc(instagram)},
-      telegram:  ${esc(telegram)},
-      socialLinks: { instagram: ${esc(instagram)}, telegram: ${esc(telegram)} }
-    };
-    window.__mlxHero = {
-      title:      ${esc(heroTitle)},
-      subtitle:   ${esc(heroSubtitle)},
-      buttonText: ${esc(heroBtnText)},
-      bgImage:    ${esc(heroBg)}
-    };
-    window.__mlxAds = {
-      popunder:  ${esc(adPopunder)},
-      banner728: ${esc(adBanner728)},
-      banner320: ${esc(adBanner320)},
-      box300:    ${esc(adBox300)},
-      smart:     ${esc(adSmart)}
-    };
-    window.__mlxDemoMode    = false;
-    window.__mlxUseDemoData = false;
-    window.__mlxSampleData  = [];
-    window.__mlxFakeData    = false;
-    document.title = window.__mlxClientName + ' — Premium 18+ Gallery';
-
-    // Fast background prefetch to RTDB REST API so localStorage has data ready before/when app.js mounts
-    try {
-      var imgKey = 'mnx_img_' + window.__mlxClientId;
-      var tsKey  = 'mnx_ts_'  + window.__mlxClientId;
-      var catKey = 'mnx_cat_' + window.__mlxClientId;
-      var ctsKey = 'mnx_cts_' + window.__mlxClientId;
-
-      var cachedTs = localStorage.getItem(tsKey);
-      if (!cachedTs || (Date.now() - Number(cachedTs)) > 180000) {
-        fetch('https://moon-night-x-default-rtdb.firebaseio.com/' + window.__mlxImgPath + '.json')
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            if (data && typeof data === 'object') {
-              var arr = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
-              if (arr.length > 0) {
-                localStorage.setItem(imgKey, JSON.stringify(arr));
-                localStorage.setItem(tsKey, String(Date.now()));
-              }
-            }
-          }).catch(function(){});
-
-        fetch('https://moon-night-x-default-rtdb.firebaseio.com/' + window.__mlxCatPath + '.json')
-          .then(function(r) { return r.json(); })
-          .then(function(data) {
-            if (data && typeof data === 'object') {
-              var arr = Array.isArray(data) ? data.filter(Boolean) : Object.values(data).filter(Boolean);
-              if (arr.length > 0) {
-                localStorage.setItem(catKey, JSON.stringify(arr));
-                localStorage.setItem(ctsKey, String(Date.now()));
-              }
-            }
-          }).catch(function(){});
-      }
-    } catch(e){}
-  <\/script>
-</head>
-<body>
-  <!-- popunder slot MUST be in body, not head -->
-  <div id="mlx-popunder-slot"></div>
-
-  <div id="root">
-    <!-- Instant Dark Skeleton UI (zero black screen, zero layout shift) -->
-    <div style="min-height:100vh;background:#050505;color:#fff;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;">
-      <!-- Header Skeleton -->
-      <header style="border-bottom:1px solid #222;background:#050505;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;max-width:1280px;margin:0 auto;height:60px;">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div style="width:32px;height:32px;background:#E02424;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;color:#fff;font-size:16px;">X</div>
-          <span style="font-weight:900;font-size:18px;letter-spacing:-0.5px;color:#fff;">${name.replace(/</g,'&lt;').toUpperCase()}</span>
-          <span style="background:rgba(224,36,36,0.1);color:#E02424;border:1px solid rgba(224,36,36,0.3);font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;">18+</span>
-        </div>
-        <div style="width:140px;height:32px;background:#111;border:1px solid #222;border-radius:9999px;"></div>
-      </header>
-
-      <!-- Content Container Skeleton -->
-      <div style="max-width:1280px;margin:0 auto;padding:24px 16px;display:flex;flex-direction:column;gap:24px;">
-        <!-- Hero Banner Skeleton -->
-        <div style="border-radius:16px;border:1px solid #222;background:#111;padding:24px;min-height:160px;display:flex;flex-direction:column;justify-content:center;gap:12px;">
-          <div style="width:140px;height:20px;background:#222;border-radius:9999px;"></div>
-          <div style="width:50%;height:28px;background:#222;border-radius:8px;"></div>
-          <div style="width:35%;height:14px;background:#1a1a1a;border-radius:6px;"></div>
-        </div>
-
-        <!-- Categories Skeleton -->
-        <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;">
-          <div style="width:80px;height:32px;background:#E02424;border-radius:9999px;flex-shrink:0;"></div>
-          <div style="width:100px;height:32px;background:#111;border:1px solid #222;border-radius:9999px;flex-shrink:0;"></div>
-          <div style="width:90px;height:32px;background:#111;border:1px solid #222;border-radius:9999px;flex-shrink:0;"></div>
-          <div style="width:110px;height:32px;background:#111;border:1px solid #222;border-radius:9999px;flex-shrink:0;"></div>
-        </div>
-
-        <!-- Grid Cards Skeleton -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px;">
-          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
-          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
-          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
-          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
-          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
-          <div style="aspect-ratio:3/4;background:#111;border:1px solid #222;border-radius:12px;"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- STEP 2: Inject ads -->
-  <script>
-    (function waitForAds() {
-      var ads = window.__mlxAds || {};
-
-      function setSlotSize(slotId, width, height) {
-        var el = document.getElementById(slotId);
-        if (!el) return;
-        el.style.width = width;
-        el.style.height = height;
-        el.style.minWidth = width;
-        el.style.minHeight = height;
-        el.style.overflow = 'hidden';
-        el.style.display = 'block';
-      }
-
-      function applySlotSize(slotId) {
-        var isMobile = (window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth) < 768;
-        if (slotId === 'adsterra-top-leaderboard') {
-          setSlotSize('adsterra-top-leaderboard', isMobile ? '320px' : '728px', isMobile ? '50px' : '90px');
-        } else if (slotId === 'adsterra-native-incontent') {
-          setSlotSize('adsterra-native-incontent', '300px', '250px');
-        } else if (slotId === 'adsterra-sidebar-skyscraper') {
-          setSlotSize('adsterra-sidebar-skyscraper', '160px', '600px');
-        } else if (slotId === 'adsterra-mobile-sticky') {
-          setSlotSize('adsterra-mobile-sticky', '320px', '50px');
-        } else if (slotId === 'adsterra-bottom-footer') {
-          setSlotSize('adsterra-bottom-footer', isMobile ? '320px' : '728px', isMobile ? '50px' : '90px');
-        }
-      }
-
-      // Helper: re-execute scripts inside an element
-      function runScripts(el) {
-        var scripts = el.querySelectorAll('script');
-        for (var i = 0; i < scripts.length; i++) {
-          var orig = scripts[i];
-          var s = document.createElement('script');
-          if (orig.src) {
-            s.src = orig.src;
-            s.async = false;
-          } else {
-            s.textContent = orig.textContent;
-          }
-          orig.parentNode.replaceChild(s, orig);
-        }
-      }
-
-      // Helper: inject ad into a slot
-      function inject(slotId, code) {
-        if (!code || !code.trim()) return false;
-        var el = document.getElementById(slotId);
-        if (!el) return false;
-        if (el.dataset.adInjected === '1') return true;
-        if (slotId === 'mlx-popunder-slot') {
-          el.innerHTML = code;
-          el.dataset.adInjected = '1';
-          runScripts(el);
-          return true;
-        }
-        applySlotSize(slotId);
-        var iframe = document.createElement('iframe');
-        iframe.style.width = '100%';
-        iframe.style.height = '100%';
-        iframe.style.border = 'none';
-        iframe.style.overflow = 'hidden';
-        iframe.scrolling = 'no';
-        iframe.setAttribute('frameborder', '0');
-        el.innerHTML = '';
-        el.appendChild(iframe);
-        el.dataset.adInjected = '1';
-        try {
-          var doc = iframe.contentWindow.document;
-          doc.open();
-          doc.write('<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;overflow:hidden;background:transparent;display:flex;justify-content:center;align-items:center;height:100%;}</style></head><body>' + code + '</body></html>');
-          doc.close();
-        } catch (e) {
-          console.warn('Failed to write ad iframe for ' + slotId, e);
-        }
-        return true;
-      }
-
-      // Slot map
-      var SLOTS = [
-        { id: 'mlx-popunder-slot',           code: ads.popunder  },
-        { id: 'adsterra-top-leaderboard',    code: ads.banner728 },
-        { id: 'adsterra-native-incontent',   code: ads.box300    },
-        { id: 'adsterra-sidebar-skyscraper', code: ads.smart     },
-        { id: 'adsterra-mobile-sticky',      code: ads.banner320 },
-        { id: 'adsterra-bottom-footer',      code: ads.banner728 }
-      ];
-
-      function tryInjectAll() {
-        var pending = [];
-        for (var i = 0; i < SLOTS.length; i++) {
-          if (!inject(SLOTS[i].id, SLOTS[i].code)) {
-            if (SLOTS[i].code && SLOTS[i].code.trim()) {
-              pending.push(SLOTS[i]);
-            }
-          }
-        }
-        return pending;
-      }
-
-      var pending = tryInjectAll();
-      if (pending.length === 0) return;
-
-      var observer = new MutationObserver(function() {
-        var stillPending = [];
-        for (var i = 0; i < pending.length; i++) {
-          if (!inject(pending[i].id, pending[i].code)) {
-            stillPending.push(pending[i]);
-          }
-        }
-        pending = stillPending;
-        if (pending.length === 0) {
-          observer.disconnect();
-        }
-      });
-
-      observer.observe(document.body, {
-        childList: true,
-        subtree: true
-      });
-
-      // Stop after 90 seconds and do one final check
-      setTimeout(function() {
-        observer.disconnect();
-        tryInjectAll();
-      }, 90000);
-
-      window.addEventListener('load', function() {
-        setTimeout(function() {
-          tryInjectAll();
-        }, 1000);
-      });
-
-      window.addEventListener('scroll', function onScroll() {
-        var el = document.getElementById('adsterra-bottom-footer');
-        if (el && !el.dataset.adInjected && ads.banner728) {
-          inject('adsterra-bottom-footer', ads.banner728);
-          if (el.dataset.adInjected) {
-            window.removeEventListener('scroll', onScroll);
-          }
-        }
-      }, { passive: true });
-    })();
-  <\/script>
-
-  <!-- STEP 3: Firebase async — live profile + visit tracking -->
-  <script type="module">
-    import { initializeApp, getApps, getApp }
-      from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-    import { getDatabase, ref, get, update, set }
-      from "https://www.gstatic.com/firebasejs/11.0.2/firebase-database.js";
-
-    const FB = {
-      apiKey:            "AIzaSyACW8aFQmlaoaxNtE55m8Pck6H8BRlfEbs",
-      authDomain:        "moon-night-x.firebaseapp.com",
-      databaseURL:       "https://moon-night-x-default-rtdb.firebaseio.com",
-      projectId:         "moon-night-x",
-      storageBucket:     "moon-night-x.firebasestorage.app",
-      messagingSenderId: "779934381788",
-      appId:             "1:779934381788:web:1426fa035171015634a619"
-    };
-
-    const fbApp = getApps().length ? getApp() : initializeApp(FB);
-    const db    = getDatabase(fbApp);
-
-    /* ── Report handler for React app ── */
-    window.__mlxReportHandler = async function(imageId, reason) {
-      const reportId = Date.now() + '_' + Math.random().toString(36).slice(2);
-      const reportData = {
-        imageId,
-        reason:      reason || 'inappropriate',
-        clientId:    ${esc(id)},
-        clientName:  ${esc(name)},
-        imagePath:   'clients/${id}/images/' + imageId,
-        reportedAt:  new Date().toISOString(),
-        status:      'pending',
-        reporterInfo: { userAgent: navigator.userAgent }
-      };
-      await set(ref(db, 'reports/' + reportId), reportData);
-      await set(ref(db, 'superAdmin/reports/' + reportId), reportData);
-      try {
-        const cntRef = ref(db, 'clients/${id}/reports/' + imageId + '/count');
-        const snap = await get(cntRef);
-        const curCount = snap.exists() ? snap.val() : 0;
-        await set(cntRef, curCount + 1);
-      } catch(e) {}
-    };
-
-    // Live profile update
-    try {
-      const pSnap = await get(ref(db, 'clients/${id}/info/profile'));
-      if (pSnap.exists()) {
-        const p = pSnap.val();
-        window.__mlxProfile = {
-          bio:       p.bio       || ${esc(bio)},
-          avatar:    p.avatar    || ${esc(avatar)},
-          instagram: p.instagram || ${esc(instagram)},
-          telegram:  p.telegram  || ${esc(telegram)},
-          socialLinks: {
-            instagram: p.instagram || ${esc(instagram)},
-            telegram:  p.telegram  || ${esc(telegram)}
-          }
-        };
-      }
-    } catch(e) {}
-
-    // Visit tracking
-    try {
-      const today   = new Date().toISOString().slice(0, 10);
-      const infoRef = ref(db, 'clients/${id}/info');
-      const snap    = await get(infoRef);
-      const cur     = snap.exists() ? snap.val() : {};
-      const upd     = { totalVisits: (cur.totalVisits || 0) + 1 };
-      if (cur.todayKey === today) { upd.todayVisits = (cur.todayVisits || 0) + 1; }
-      else { upd.todayVisits = 1; upd.todayKey = today; }
-      await update(infoRef, upd);
-      await update(ref(db, 'superAdmin/clients/${id}'), upd).catch(() => {});
-    } catch(e) {}
-  <\/script>
-</body>
-</html>`;
-}
-
-// SHARE MODAL
-function saShowShareModal(clientId) {
-  const c    = saClients.find(x => x.id === clientId); if(!c) return;
-  const adminUrl   = `https://moonlightx.qd.je/admin/#/admin/${c.username}`;
-  const siteUrl    = `https://moonlightx.qd.je/${c.username}/`;
-
-  document.getElementById('sm-name').textContent       = c.name;
-  document.getElementById('sm-admin-url').textContent  = adminUrl;
-  document.getElementById('sm-site-url').textContent   = siteUrl;
-  document.getElementById('sm-download-site').dataset.clientId  = clientId;
-  document.getElementById('sm-download-status').style.display   = 'none';
-  document.getElementById('sm-deploy-github').dataset.clientId  = clientId;
-  document.getElementById('sm-deploy-status').style.display     = 'none';
-  const pathHint = document.getElementById('sm-path-hint');
-  if (pathHint) pathHint.textContent = `${c.username}/index.html`;
-
-  // Hide deployed URL section completely in share modal
-  const depSection = document.getElementById('sm-deployed-section');
-  if (depSection) depSection.style.display = 'none';
-
-  document.getElementById('sm-copy-admin').onclick = () => {
-    navigator.clipboard.writeText(adminUrl);
-    document.getElementById('sm-copy-admin').textContent = '✅ Copied!';
-    setTimeout(() => document.getElementById('sm-copy-admin').textContent = '📋 Copy', 2000);
-  };
-  document.getElementById('sm-open-admin').onclick = () => window.open(adminUrl, '_blank');
-  document.getElementById('sm-copy-site').onclick  = () => {
-    navigator.clipboard.writeText(siteUrl);
-    document.getElementById('sm-copy-site').textContent = '✅ Copied!';
-    setTimeout(() => document.getElementById('sm-copy-site').textContent = '📋 Copy', 2000);
-  };
-  document.getElementById('sm-open-site').onclick  = () => window.open(siteUrl, '_blank');
-
-  // Public URL warning in share modal
-  const smWarn = document.getElementById('sm-public-warn');
-  if (smWarn) smWarn.style.display = getPublicBase() ? 'none' : 'flex';
-
-  document.getElementById('sm-copy-both').onclick  = () => {
-    const msg = `🌙 Moon Light X — Aapke Links:
-
-📌 Ye links sirf aapke liye hain.
-
-Hi! Ye rahe aapke Moon Light X ke 2 links:\n\n⚙️ Admin Panel (images manage karo):\n${adminUrl}\n\n🌐 Public Gallery (visitors dekhenge):\n${siteUrl}\n\nAdmin panel pe apni Gmail (${c.googleEmail}) se login karo.`;
-    navigator.clipboard.writeText(msg);
-    document.getElementById('sm-copy-both').textContent = '✅ Copied!';
-    setTimeout(() => document.getElementById('sm-copy-both').textContent = '📋 Copy Both Links', 2000);
-  };
-
-  (async () => {
-    try {
-      await update(ref(db, `superAdmin/clients/${clientId}`), {
-        adminUrl,
-        siteUrl,
-        generatedAt: new Date().toISOString()
-      });
-      try {
-        await update(ref(db, `clients/${clientId}/info`), {
-          adminUrl,
-          siteUrl,
-          generatedAt: new Date().toISOString()
-        });
-      } catch(e){}
-      saAddLog('add', `Generated URLs for "${c.name}" — site: ${siteUrl}`);
-    } catch (err) {
-      console.error('Error saving URLs to Firebase:', err);
-      toast('❌ Failed to save URLs: ' + err.message, 'err');
-    }
-  })();
-
-  document.getElementById('share-modal').style.display = 'flex';
-}
-document.getElementById('sm-close').addEventListener('click', () => document.getElementById('share-modal').style.display = 'none');
-
-document.getElementById('sm-deploy-github').addEventListener('click', async () => {
-  const btn      = document.getElementById('sm-deploy-github');
-  const status   = document.getElementById('sm-deploy-status');
-  const clientId = btn.dataset.clientId;
-  if (!clientId) { toast('❌ Client ID missing', 'err'); return; }
-
-  if (!ghGetToken()) {
-    status.style.display    = 'block';
-    status.style.background = '#2d0a0a';
-    status.style.color      = 'var(--red)';
-    status.innerHTML = '❌ GitHub Token nahi hai!<br>Settings mein jaao → GitHub Auto-Deploy Settings → Token daalo → Save karo.';
-    return;
+// Auto generate Client ID and PSID when Username is typed
+document.getElementById('sa-cm-username')?.addEventListener('input', (e) => {
+  const u = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+  e.target.value = u;
+  const preview = document.getElementById('sa-username-preview');
+  if (preview) {
+    preview.textContent = u ? `Generated URL: https://moonlightx.qd.je/${u}` : 'Generated URL: https://moonlightx.qd.je/—';
   }
-
-  btn.textContent = '⏳ Deploying...';
-  btn.disabled    = true;
-  status.style.display    = 'block';
-  status.style.background = '#0a1020';
-  status.style.color      = '#60a5fa';
-  status.textContent      = '🚀 GitHub pe push ho raha hai...';
-
-  try {
-    const deployedUrl = await deployToGitHub(clientId);
-    const c = saClients.find(x => x.id === clientId);
-    status.style.background = '#0a1a0a';
-    status.style.color      = 'var(--grn)';
-    status.innerHTML = `✅ Deploy successful!<br>
-      <strong>Live URL:</strong> <a href="${deployedUrl}" target="_blank"
-        style="color:#4ade80;word-break:break-all">${deployedUrl}</a><br>
-      <span style="color:var(--mu);font-size:10px">GitHub Pages pe 1-2 min mein live hoga.</span>`;
-    toast('✅ Deployed! ' + deployedUrl);
-    saAddLog('add', `Deployed "${c?.name}" to GitHub: ${deployedUrl}`);
-  } catch(e) {
-    status.style.background = '#2d0a0a';
-    status.style.color      = 'var(--red)';
-    status.innerHTML        = '❌ ' + e.message.replace(/\n/g, '<br>');
-    toast('❌ ' + e.message.split('\n')[0], 'err');
+  const cidInput  = document.getElementById('sa-cm-clientid');
+  const psidInput = document.getElementById('sa-cm-psid');
+  if (cidInput && (!cidInput.value || cidInput.dataset.auto === 'true')) {
+    cidInput.value = u ? u + '001' : '';
+    cidInput.dataset.auto = 'true';
   }
-
-  btn.textContent = '🚀 Deploy to GitHub';
-  btn.disabled    = false;
-});
-
-document.getElementById('sm-download-site').addEventListener('click', async () => {
-  const btn    = document.getElementById('sm-download-site');
-  const status = document.getElementById('sm-download-status');
-  const clientId = btn.dataset.clientId;
-  if (!clientId) { toast('❌ Client ID missing', 'err'); return; }
-
-  btn.textContent = '⏳ Generating...';
-  btn.disabled    = true;
-  status.style.display = 'none';
-
-  try {
-    const html = await generateClientSiteHTML(clientId);
-    const blob = new Blob([html], { type: 'text/html' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    const c    = saClients.find(x => x.id === clientId);
-    const username = c?.username || clientId;
-    a.href     = url;
-    a.download = 'index.html';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    status.style.display    = 'block';
-    status.style.background = '#0a1020';
-    status.style.color      = '#60a5fa';
-    status.style.padding    = '10px';
-    status.style.borderRadius = '8px';
-    status.style.lineHeight = '1.8';
-    status.innerHTML = '✅ <strong>File download ho gayi!</strong><br>' +
-      '⚠️ <strong>ROOT mein upload mat karna!</strong><br>' +
-      'GitHub repo mein yeh folder banao aur iske andar dalo:<br>' +
-      '<code style="background:#1a2a60;padding:2px 6px;border-radius:4px;color:#93c5fd">' + username + '/index.html</code><br>' +
-      '<span style="color:var(--mu);font-size:10px">Ya ⚡ Auto Deploy use karo — woh automatically sahi jagah daalega.</span>';
-    toast('✅ File downloaded!');
-  } catch(e) {
-    status.style.display = 'block';
-    status.style.color   = 'var(--red)';
-    status.textContent   = '❌ ' + e.message;
-    toast('❌ ' + e.message, 'err');
+  if (psidInput && (!psidInput.value || psidInput.dataset.auto === 'true')) {
+    psidInput.value = u ? u + '001' : '';
+    psidInput.dataset.auto = 'true';
   }
-  btn.textContent = '⬇️ Download index.html';
-  btn.disabled    = false;
 });
 
-// CLIENT MODAL
-document.getElementById('sa-cm-pct').addEventListener('input', () => {
-  const v = document.getElementById('sa-cm-pct').value;
-  document.getElementById('sa-pct-val').textContent  = v;
-  document.getElementById('sa-keep-val').textContent = 100 - v;
-});
-document.getElementById('sa-cm-username').addEventListener('input', () => {
-  let u = document.getElementById('sa-cm-username').value.toLowerCase().replace(/[^a-z0-9-]/g,'');
-  document.getElementById('sa-cm-username').value = u;
-  document.getElementById('sa-username-preview').innerHTML =
-    u ? `Admin: <span style="color:var(--grn)">https://moonlightx.qd.je/admin/#/admin/${u}</span> &nbsp;|&nbsp; Site: <span style="color:var(--blu)">https://moonlightx.qd.je/${u}/</span>`
-      : 'Preview: —';
-});
-
-function saOpenAdd() {
+function saOpenAddClient() {
   saEditId = null;
-  document.getElementById('sa-cm-title').textContent = '👥 Add New Client';
-  document.getElementById('sa-cm-save').textContent  = '💾 Save & Generate URLs';
-  ['sa-cm-name','sa-cm-email','sa-cm-username','sa-cm-adsterra','sa-cm-notes','sa-cm-ad-popunder','sa-cm-ad-banner728','sa-cm-ad-banner320','sa-cm-ad-box300','sa-cm-ad-smart'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('sa-cm-pct').value = 40;
-  document.getElementById('sa-pct-val').textContent  = '40';
-  document.getElementById('sa-keep-val').textContent = '60';
+  document.getElementById('sa-cm-title').textContent = '👥 Create Client';
+  document.getElementById('sa-cm-save').textContent  = '💾 Create Client';
+  document.getElementById('sa-cm-username').disabled  = false;
+  ['sa-cm-username','sa-cm-display-name','sa-cm-clientid','sa-cm-psid','sa-cm-email'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.value = ''; el.dataset.auto = 'true'; }
+  });
   document.getElementById('sa-cm-status').value = 'active';
-  document.getElementById('sa-username-preview').textContent = 'Preview: —';
+  document.getElementById('sa-username-preview').textContent = 'Generated URL: https://moonlightx.qd.je/—';
   document.getElementById('sa-client-modal').style.display = 'flex';
 }
-function saOpenEdit(id) {
-  const c = saClients.find(x => x.id === id); if(!c) return;
-  saEditId = id;
+
+function saOpenEditClient(username) {
+  const c = saClients.find(x => x.username === username || x.id === username);
+  if (!c) return;
+  saEditId = username;
   document.getElementById('sa-cm-title').textContent   = '✏️ Edit Client';
   document.getElementById('sa-cm-save').textContent    = '💾 Update Client';
-  document.getElementById('sa-cm-name').value          = c.name||'';
-  document.getElementById('sa-cm-email').value         = c.googleEmail||'';
-  document.getElementById('sa-cm-username').value      = c.username||'';
-  document.getElementById('sa-cm-adsterra').value      = c.adsterraSiteId||'';
-  document.getElementById('sa-cm-notes').value         = c.notes||'';
-  document.getElementById('sa-cm-ad-popunder').value  = c.adPopunder  ||'';
-  document.getElementById('sa-cm-ad-banner728').value = c.adBanner728 ||'';
-  document.getElementById('sa-cm-ad-banner320').value = c.adBanner320 ||'';
-  document.getElementById('sa-cm-ad-box300').value    = c.adBox300    ||'';
-  document.getElementById('sa-cm-ad-smart').value     = c.adSmart     ||'';
-  document.getElementById('sa-cm-status').value        = c.status||'active';
-  const pct = c.earningPercent||40;
-  document.getElementById('sa-cm-pct').value           = pct;
-  document.getElementById('sa-pct-val').textContent    = pct;
-  document.getElementById('sa-keep-val').textContent   = 100 - pct;
-  document.getElementById('sa-cm-username').dispatchEvent(new Event('input'));
+  const unInput = document.getElementById('sa-cm-username');
+  unInput.value = c.username || username;
+  unInput.disabled = true;
+
+  document.getElementById('sa-cm-display-name').value = c.displayName || c.name || '';
+  document.getElementById('sa-cm-clientid').value     = c.clientId || (username + '001');
+  document.getElementById('sa-cm-psid').value         = c.adsterraPSID || c.psid || (username + '001');
+  document.getElementById('sa-cm-email').value        = c.googleEmail || '';
+  document.getElementById('sa-cm-status').value       = c.status || (c.active !== false ? 'active' : 'disabled');
+  document.getElementById('sa-username-preview').textContent = `Generated URL: https://moonlightx.qd.je/${c.username || username}`;
   document.getElementById('sa-client-modal').style.display = 'flex';
 }
 
-document.getElementById('sa-btn-add').addEventListener('click', saOpenAdd);
-document.getElementById('sa-btn-add2').addEventListener('click', saOpenAdd);
-document.getElementById('sa-cm-cancel').addEventListener('click', () => document.getElementById('sa-client-modal').style.display = 'none');
+document.getElementById('sa-btn-add')?.addEventListener('click', saOpenAddClient);
+document.getElementById('sa-btn-add2')?.addEventListener('click', saOpenAddClient);
+document.getElementById('sa-cm-cancel')?.addEventListener('click', () => document.getElementById('sa-client-modal').style.display = 'none');
 
-document.getElementById('sa-cm-save').addEventListener('click', async () => {
-  const name     = document.getElementById('sa-cm-name').value.trim();
-  const email    = document.getElementById('sa-cm-email').value.trim().toLowerCase();
-  const username = document.getElementById('sa-cm-username').value.trim().toLowerCase().replace(/[^a-z0-9-]/g,'');
+document.getElementById('sa-cm-save')?.addEventListener('click', async () => {
+  const username    = document.getElementById('sa-cm-username').value.trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+  const displayName = document.getElementById('sa-cm-display-name').value.trim();
+  const clientId    = document.getElementById('sa-cm-clientid').value.trim() || (username + '001');
+  const psid        = document.getElementById('sa-cm-psid').value.trim() || (username + '001');
+  const email       = document.getElementById('sa-cm-email').value.trim().toLowerCase();
+  const status      = document.getElementById('sa-cm-status').value || 'active';
 
-  if(!name)     { toast('❌ Name required!','err'); return; }
-  if(!email)    { toast('❌ Email required!','err'); return; }
-  if(!username) { toast('❌ Username required (only a-z, 0-9, - allowed)!','err'); return; }
+  if (!username)    { toast('❌ Username required!', 'err'); return; }
+  if (!displayName) { toast('❌ Display Name required!', 'err'); return; }
+  if (!email)       { toast('❌ Client Gmail required!', 'err'); return; }
 
-  if(!saEditId) {
+  if (!saEditId) {
     const exists = saClients.find(c => c.username === username);
-    if(exists) { toast('❌ Username "'+username+'" already taken! Choose another.','err'); return; }
+    if (exists) { toast(`❌ Username "${username}" already taken!`, 'err'); return; }
   }
 
-  try {
-    checkAuth();
-  } catch (authError) {
-    console.error("Auth check failed:", authError);
-    toast("❌ " + authError.message, "err");
-    return;
-  }
-
-  const id       = saEditId || ('cl_' + username + '_' + Date.now());
-  const existing = saEditId ? saClients.find(c => c.id === id) : null;
-  const base     = getBase();
-
-  const heroDefaults = {
-    title:      `${name} Premium HD Showcase`,
-    subtitle:   `Exclusive high resolution curated adult gallery photography for ${name}.`,
-    buttonText: `View Featured Gallery`,
-    bgImage:    existing?.hero?.bgImage || ''
-  };
-
-  const data = {
-    id,
-    name,
+  const existing = saClients.find(c => c.username === username || c.id === username);
+  const clientData = {
     username,
-    googleEmail:    email,
-    earningPercent: parseInt(document.getElementById('sa-cm-pct').value) || 40,
-    status:         document.getElementById('sa-cm-status').value || 'active',
-    adsterraSiteId: document.getElementById('sa-cm-adsterra').value.trim(),
-    notes:          document.getElementById('sa-cm-notes').value.trim(),
-    adPopunder:     document.getElementById('sa-cm-ad-popunder')?.value.trim()||'',
-    adBanner728:    document.getElementById('sa-cm-ad-banner728')?.value.trim()||'',
-    adBanner320:    document.getElementById('sa-cm-ad-banner320')?.value.trim()||'',
-    adBox300:       document.getElementById('sa-cm-ad-box300')?.value.trim()||'',
-    adSmart:        document.getElementById('sa-cm-ad-smart')?.value.trim()||'',
-    createdAt:      existing ? (existing.createdAt || new Date().toISOString()) : new Date().toISOString(),
-    updatedAt:      new Date().toISOString(),
-    totalEarning:   existing ? (existing.totalEarning  || 0) : 0,
-    totalVisits:    existing ? (existing.totalVisits   || 0) : 0,
-    todayVisits:    existing ? (existing.todayVisits   || 0) : 0,
-    totalViews:     existing ? (existing.totalViews    || 0) : 0,
-    adminUrl:       'https://moonlightx.qd.je/admin/#/admin/' + username,
-    siteUrl:        'https://moonlightx.qd.je/' + username + '/',
-    hero:           existing?.hero || heroDefaults
+    clientId,
+    displayName,
+    name: displayName,
+    adsterraPSID: psid,
+    psid,
+    googleEmail: email,
+    status,
+    active: status === 'active',
+    earnings: existing ? (existing.earnings || 0) : 0,
+    today: existing ? (existing.today || 0) : 0,
+    totalClicks: existing ? (existing.totalClicks || 0) : 0,
+    totalViews: existing ? (existing.totalViews || 0) : 0,
+    withdrawable: existing ? (existing.withdrawable || 0) : 0,
+    createdAt: existing ? (existing.createdAt || new Date().toISOString()) : new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    siteUrl: `https://moonlightx.qd.je/${username}`
   };
 
   const btn = document.getElementById('sa-cm-save');
@@ -1549,1230 +588,298 @@ document.getElementById('sa-cm-save').addEventListener('click', async () => {
   btn.disabled    = true;
 
   try {
-    console.log('Saving client to Firebase path: superAdmin/clients/' + id);
-    await saveClient(data);
+    // Write directly to `clients/${username}`
+    await set(ref(db, 'clients/' + username), clientData);
+    await set(ref(db, 'superAdmin/clients/' + clientId), clientData).catch(() => {});
 
-    try {
-      await update(ref(db, `clients/${id}/info`), data);
-      const targetHero = data.hero || heroDefaults;
-      await set(ref(db, `clients/${id}/info/hero`), targetHero);
-      await set(ref(db, `superAdmin/clients/${id}/hero`), targetHero);
-    } catch(syncErr) {
-      console.warn("Syncing to clients/info failed:", syncErr);
-    }
-
-    console.log('✅ Client saved successfully');
-    toast('✅ Client "' + name + '" ' + (saEditId ? 'updated' : 'created') + '!');
+    toast(`✅ Client "${displayName}" ${saEditId ? 'updated' : 'created'}!`);
     document.getElementById('sa-client-modal').style.display = 'none';
-
-    try {
-      saAddLog(saEditId ? 'edit' : 'add',
-        (saEditId ? 'Updated' : 'Created') + ' client: "' + name + '" (@' + username + ')');
-    } catch(logErr) { console.warn('Log failed:', logErr); }
-
-    if(!saEditId) {
-      setTimeout(() => saShowShareModal(id), 500);
-    }
-
+    saAddLog(saEditId ? 'edit' : 'add', `${saEditId ? 'Updated' : 'Created'} client @${username}`);
   } catch(e) {
-    console.error('Client save error:', e);
-    let msg = e.message || 'Unknown error';
-    if(e.code === 'PERMISSION_DENIED' || msg.includes('permission') || msg.includes('Permission') || msg.includes('PERMISSION_DENIED')) {
-      msg = 'Firebase permission denied! Database Rules check karo.';
-    } else if(msg.includes('network') || msg.includes('Network')) {
-      msg = 'Network error! Internet connection check karo.';
-    }
-    toast('❌ ' + msg, 'err');
+    toast('❌ ' + e.message, 'err');
   } finally {
-    btn.textContent = saEditId ? '💾 Update Client' : '💾 Save & Generate URLs';
+    btn.textContent = saEditId ? '💾 Update Client' : '💾 Save Client';
     btn.disabled    = false;
   }
 });
 
-async function deleteClientGitHubFile(username) {
-  if (!username) return;
-  const token  = localStorage.getItem('mnx_gh_token') || '';
-  const repo   = 'pikavika77/moonlightx';
-  const branch = 'main';
+async function saToggleDisableClient(username) {
+  const c = saClients.find(x => x.username === username || x.id === username);
+  if (!c) return;
+  const currentStatus = c.status || (c.active !== false ? 'active' : 'disabled');
+  const newStatus = currentStatus === 'active' ? 'disabled' : 'active';
 
-  if (!token) return; // silently skip if no token
-
-  const headers = {
-    'Authorization': `Bearer ${token}`,
-    'Accept': 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28'
-  };
-
-  const paths = [`${username}/index.html`, `clients/${username}/index.html`];
-
-  for (const path of paths) {
-    const apiUrl = `https://api.github.com/repos/${repo}/contents/${path}`;
-    try {
-      // Get SHA first
-      const getRes = await fetch(`${apiUrl}?ref=${branch}`, { headers });
-      if (!getRes.ok) continue; // file doesn't exist, skip
-
-      const fileData = await getRes.json();
-      const sha = fileData.sha;
-
-      // Delete the file
-      await fetch(apiUrl, {
-        method: 'DELETE',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: `Remove client: ${username}`,
-          sha,
-          branch
-        })
-      });
-    } catch(e) {
-      console.warn('Error deleting client GitHub file:', e);
+  try {
+    await update(ref(db, 'clients/' + (c.username || username)), { status: newStatus, active: newStatus === 'active' });
+    if (c.clientId) {
+      await update(ref(db, 'superAdmin/clients/' + c.clientId), { status: newStatus, active: newStatus === 'active' }).catch(() => {});
     }
+    toast(`Client ${newStatus === 'disabled' ? 'disabled' : 'enabled'}`);
+    saAddLog('edit', `Toggled @${username} to ${newStatus}`);
+  } catch(e) {
+    toast('❌ ' + e.message, 'err');
   }
 }
 
-function saDeleteClient(id, name) {
-  const client = saClients.find(c => c.id === id);
-  const clientName = name || client?.name || 'Client';
-  const username = client?.username || '';
-
-  const existingModal = document.getElementById('sa-delete-confirm-modal');
-  if (existingModal) existingModal.remove();
-
-  const overlay = document.createElement('div');
-  overlay.className = 'overlay';
-  overlay.id = 'sa-delete-confirm-modal';
-  overlay.style.display = 'flex';
-
-  overlay.innerHTML = `
-    <div class="modal" style="max-width:480px">
-      <h2 style="color:var(--red);margin-bottom:12px">🗑️ Delete Client</h2>
-      <div style="font-size:13px;line-height:1.6;margin-bottom:16px;color:var(--tx)">
-        Are you sure you want to delete <strong style="color:var(--red);font-size:15px">${escapeHTML(clientName)}</strong>?<br><br>
-        This will permanently delete:
-        <ul style="margin:10px 0 10px 20px;color:var(--mu);line-height:1.8">
-          <li>Their admin panel access</li>
-          <li>All their gallery images</li>
-          <li>All their categories</li>
-          <li>All their earnings data</li>
-        </ul>
-        <strong style="color:var(--red)">This action CANNOT be undone.</strong>
-      </div>
-      <div class="mfoot">
-        <button class="btn btn-g" id="sa-del-cancel">Cancel</button>
-        <button class="btn btn-d" id="sa-del-confirm">Delete Permanently</button>
-      </div>
-    </div>
-  `;
-
-  document.body.appendChild(overlay);
-
-  document.getElementById('sa-del-cancel').addEventListener('click', () => {
-    overlay.remove();
-  });
-
-  document.getElementById('sa-del-confirm').addEventListener('click', async () => {
-    const btn = document.getElementById('sa-del-confirm');
-    btn.disabled = true;
-    btn.textContent = '⏳ Deleting...';
-
-    try {
-      await remove(ref(db, `superAdmin/clients/${id}`));
-      try { await remove(ref(db, `clients/${id}`)); } catch(e){}
-
-      if (username) {
-        await deleteClientGitHubFile(username);
-      }
-
-      saAddLog('del', `Deleted client: "${clientName}"`);
-      toast('🗑️ Client deleted');
-      overlay.remove();
-    } catch(e) {
-      toast('❌ ' + e.message, 'err');
-      btn.disabled = false;
-      btn.textContent = 'Delete Permanently';
+async function saDeleteClient(username) {
+  if (!confirm(`Are you sure you want to delete client @${username}? This action cannot be undone.`)) return;
+  try {
+    await remove(ref(db, 'clients/' + username));
+    const c = saClients.find(x => x.username === username);
+    if (c && c.clientId) {
+      await remove(ref(db, 'superAdmin/clients/' + c.clientId)).catch(() => {});
     }
-  });
-}
-
-// REVENUE
-function saRenderRevenue() {
-  const total  = saClients.reduce((a,c)=>a+(c.totalEarning||0),0);
-  const payout = saClients.reduce((a,c)=>a+(c.totalEarning||0)*(c.earningPercent||40)/100,0);
-  document.getElementById('sa-r-total').textContent  = '₹'+total.toFixed(0);
-  document.getElementById('sa-r-mine').textContent   = '₹'+(total-payout).toFixed(0);
-  document.getElementById('sa-r-payout').textContent = '₹'+payout.toFixed(0);
-  document.getElementById('sa-rev-tbody').innerHTML  = saClients.map(c => {
-    const t=c.totalEarning||0, p=c.earningPercent||40;
-    return `<tr>
-      <td style="font-weight:700">${escapeHTML(c.name)}</td>
-      <td style="color:var(--grn)">₹${t.toFixed(0)}</td>
-      <td>
-        <input type="range" min="0" max="100" value="${p}" data-cid="${escapeHTML(c.id)}" data-tot="${t}" class="pct-sl" style="width:80px;accent-color:var(--red)"/>
-        <span id="psl-${escapeHTML(c.id)}" style="font-size:11px;font-weight:700;color:var(--red);margin-left:4px">${p}%</span>
-      </td>
-      <td style="color:var(--ylw)" id="cget-${escapeHTML(c.id)}">₹${(t*p/100).toFixed(0)}</td>
-      <td style="color:var(--blu)" id="ykeep-${escapeHTML(c.id)}">₹${(t*(100-p)/100).toFixed(0)}</td>
-      <td><button class="btn btn-grn btn-xs" data-sp="${escapeHTML(c.id)}">💾</button></td>
-    </tr>`;
-  }).join('') || '<tr><td colspan="6"><div class="empty"><div class="eic">💰</div>No clients</div></td></tr>';
-
-  document.querySelectorAll('.pct-sl').forEach(sl => sl.addEventListener('input', () => {
-    const cid = sl.dataset.cid;
-    const val = parseInt(sl.value) || 0;
-    const tot = parseFloat(sl.dataset.tot) || 0;
-    document.getElementById('psl-'+cid).textContent = val+'%';
-    document.getElementById('cget-'+cid).textContent = '₹' + (tot * val / 100).toFixed(0);
-    document.getElementById('ykeep-'+cid).textContent = '₹' + (tot * (100 - val) / 100).toFixed(0);
-  }));
-  document.querySelectorAll('[data-sp]').forEach(btn => btn.addEventListener('click', async () => {
-    const cid = btn.dataset.sp;
-    const sl = document.querySelector(`.pct-sl[data-cid="${cid}"]`);
-    const val = parseInt(sl.value) || 0;
-    try {
-      await update(ref(db,`superAdmin/clients/${cid}`),{earningPercent:val});
-      try { await update(ref(db,`clients/${cid}/info`),{earningPercent:val}); } catch(e){}
-      toast('✅ % updated');
-    } catch(e){ toast('❌ '+e.message,'err'); }
-  }));
-}
-
-function setTrafficSort(field) {
-  if (trafficSortField === field) {
-    trafficSortAsc = !trafficSortAsc;
-  } else {
-    trafficSortField = field;
-    trafficSortAsc = false;
+    toast('🗑️ Client deleted');
+    saAddLog('del', `Deleted client @${username}`);
+  } catch(e) {
+    toast('❌ ' + e.message, 'err');
   }
-  saRenderTraffic();
 }
 
-function saRenderTraffic() {
-  document.getElementById('sa-t-total').textContent = saClients.reduce((a,c)=>a+(c.totalVisits||0),0).toLocaleString();
-  document.getElementById('sa-t-today').textContent = saClients.reduce((a,c)=>a+(c.todayVisits||0),0).toLocaleString();
-  document.getElementById('sa-t-views').textContent = saClients.reduce((a,c)=>a+(c.totalViews||0),0).toLocaleString();
+function saCopyClientUrl(username) {
+  const url = `https://moonlightx.qd.je/${username}`;
+  navigator.clipboard.writeText(url);
+  toast('📋 Copied: ' + url);
+}
 
-  const sortedClients = [...saClients].sort((a, b) => {
-    let valA = a[trafficSortField];
-    let valB = b[trafficSortField];
-    if (typeof valA === 'string') valA = valA.toLowerCase();
-    if (typeof valB === 'string') valB = valB.toLowerCase();
-    if (valA === undefined || valA === null) valA = '';
-    if (valB === undefined || valB === null) valB = '';
+// ══════════════════════════════════════════════════════════════════════
+// ── CLIENT EARNINGS TABLE (REALTIME ONVALUE LISTENER) ─────────────────
+// ══════════════════════════════════════════════════════════════════════
 
-    if (valA < valB) return trafficSortAsc ? -1 : 1;
-    if (valA > valB) return trafficSortAsc ? 1 : -1;
+function saRenderEarningsTable() {
+  const tbody = document.getElementById('sa-earnings-tbody');
+  if (!tbody) return;
+
+  const q = (document.getElementById('sa-q-earnings')?.value || '').toLowerCase();
+  const sortVal = document.getElementById('sa-sort-earnings')?.value || 'earnings-desc';
+
+  let list = saClients.filter(c => {
+    const un = (c.username || c.id || '').toLowerCase();
+    const dn = (c.displayName || c.name || '').toLowerCase();
+    return !q || un.includes(q) || dn.includes(q);
+  });
+
+  list.sort((a, b) => {
+    if (sortVal === 'earnings-desc') return (Number(b.earnings || 0) - Number(a.earnings || 0));
+    if (sortVal === 'today-desc')    return (Number(b.today || 0) - Number(a.today || 0));
+    if (sortVal === 'views-desc')    return (Number(b.totalViews || 0) - Number(a.totalViews || 0));
+    if (sortVal === 'clicks-desc')   return (Number(b.totalClicks || 0) - Number(a.totalClicks || 0));
+    if (sortVal === 'username-asc')  return (a.username || '').localeCompare(b.username || '');
     return 0;
   });
 
-  const headers = [
-    { label: 'Client', field: 'name' },
-    { label: 'Site URL', field: 'siteUrl' },
-    { label: 'Today', field: 'todayVisits' },
-    { label: 'Total Visits', field: 'totalVisits' },
-    { label: 'Views', field: 'totalViews' },
-    { label: 'Status', field: 'status' }
-  ];
+  tbody.innerHTML = list.length ? list.map(c => {
+    const username     = c.username || c.id;
+    const displayName  = c.displayName || c.name || username;
+    const todayEarn    = Number(c.today || 0).toFixed(2);
+    const totalEarn    = Number(c.earnings || 0).toFixed(2);
+    const views        = Number(c.totalViews || 0).toLocaleString();
+    const clicks       = Number(c.totalClicks || 0).toLocaleString();
+    const withdrawable = Number(c.withdrawable || 0).toFixed(2);
+    const lastUpdate   = c.updatedAt ? new Date(c.updatedAt).toLocaleString() : (c.createdAt ? new Date(c.createdAt).toLocaleDateString() : '—');
 
-  const theadHTML = `<tr>${headers.map(h => {
-    const isSorted = trafficSortField === h.field;
-    const arrow = isSorted ? (trafficSortAsc ? ' ▲' : ' ▼') : '';
-    return `<th style="cursor:pointer;user-select:none" id="th-traffic-${h.field}">${h.label}${arrow}</th>`;
-  }).join('')}</tr>`;
-
-  const tbodyHTML = sortedClients.map(c=>`
-    <tr>
-      <td style="font-weight:700">${escapeHTML(c.name)}</td>
-      <td><a href="${c.siteUrl||'#'}" target="_blank" style="color:var(--blu);font-size:11px">${escapeHTML(c.siteUrl||'—')}</a></td>
-      <td style="color:var(--ylw);font-weight:700">${(c.todayVisits||0).toLocaleString()}</td>
-      <td style="color:var(--grn);font-weight:700">${(c.totalVisits||0).toLocaleString()}</td>
-      <td>${(c.totalViews||0).toLocaleString()}</td>
-      <td><span class="tag ${c.status==='active'?'grn':'mu'}">${escapeHTML(c.status)}</span></td>
-    </tr>`).join('') || '<tr><td colspan="6"><div class="empty"><div class="eic">📈</div>No data</div></td></tr>';
-
-  const tableContainer = document.getElementById('sa-traffic-tbody').parentElement;
-  tableContainer.querySelector('thead').innerHTML = theadHTML;
-  document.getElementById('sa-traffic-tbody').innerHTML = tbodyHTML;
-
-  headers.forEach(h => {
-    document.getElementById(`th-traffic-${h.field}`)?.addEventListener('click', () => setTrafficSort(h.field));
-  });
-}
-
-// EARN ADD
-function saPopulateEarnSelect() {
-  const sel = document.getElementById('sa-earn-client');
-  if(!sel) return;
-  sel.innerHTML = '<option value="">Choose client...</option>';
-  saClients.forEach(c => { const o=document.createElement('option'); o.value=c.id; o.textContent=c.name; sel.appendChild(o); });
-}
-document.getElementById('sa-btn-earn').addEventListener('click', async () => {
-  const cid    = document.getElementById('sa-earn-client').value;
-  const amount = parseFloat(document.getElementById('sa-earn-amount').value);
-  const note   = document.getElementById('sa-earn-note').value.trim();
-  if(!cid||!amount) { toast('Select client and amount','inf'); return; }
-  const c = saClients.find(x=>x.id===cid);
-  const newEarn = (c?.totalEarning||0)+amount;
-  const earnItem = {amount,note,t:new Date().toISOString()};
-  const earnKey = `earn_${Date.now()}`;
-  try {
-    await update(ref(db,`superAdmin/clients/${cid}`),{totalEarning:newEarn});
-    await set(ref(db,`superAdmin/clients/${cid}/earningHistory/${earnKey}`),earnItem);
-    try {
-      await update(ref(db,`clients/${cid}/info`),{totalEarning:newEarn});
-      await set(ref(db,`clients/${cid}/earningHistory/${earnKey}`),earnItem);
-    } catch(e){}
-    saAddLog('add',`Added ₹${amount} to "${c?.name}"`);
-    toast(`✅ ₹${amount} added`);
-    document.getElementById('sa-earn-amount').value='';
-    document.getElementById('sa-earn-note').value='';
-  } catch(e){ toast('❌ '+e.message,'err'); }
-});
-
-// ── GITHUB DEPLOY ─────────────────────────────────────────────────────
-
-function ghGetToken()  { return (document.getElementById('sa-gh-token')?.value || '').trim() || localStorage.getItem('mnx_gh_token') || ''; }
-function ghGetRepo()   { return (document.getElementById('sa-gh-repo')?.value || '').trim() || localStorage.getItem('mnx_gh_repo') || 'pikavika77/moonlightx'; }
-function ghGetBranch() { return (document.getElementById('sa-gh-branch')?.value || '').trim() || localStorage.getItem('mnx_gh_branch') || 'main'; }
-
-async function deployToGitHub(clientId) {
-  // Token: field se pehle, phir localStorage se
-  const fieldToken  = (document.getElementById('sa-gh-token')?.value || '').trim();
-  const storedToken = localStorage.getItem('mnx_gh_token') || '';
-  const token  = fieldToken || storedToken;
-  const repo   = ghGetRepo();
-  const branch = ghGetBranch();
-
-  if (!token) throw new Error('GitHub Token nahi hai! Settings mein token daalo aur Save karo.');
-
-  if (fieldToken) {
-    localStorage.setItem('mnx_gh_token', fieldToken);
-  }
-
-  const c = saClients.find(x => x.id === clientId);
-  if (!c) throw new Error('Client nahi mila!');
-
-  // Generate HTML
-  const html = await generateClientSiteHTML(clientId);
-  const path = `${c.username}/index.html`;
-  const apiBase = `https://api.github.com/repos/${repo}/contents/${path}`;
-
-  console.log('[GitHub Deploy] Starting deployment...');
-  console.log('[GitHub Deploy] API URL:', apiBase);
-  console.log('[GitHub Deploy] Branch:', branch);
-  console.log('[GitHub Deploy] File Path:', path);
-
-  // Check if file already exists (to get SHA for update)
-  let sha = null;
-  let shaStatus = 'UNKNOWN';
-  let shaResponseBody = null;
-
-  try {
-    const existing = await fetch(`${apiBase}?ref=${branch}`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github.v3+json'
-      }
-    });
-    shaStatus = existing.status;
-    shaResponseBody = await existing.json().catch(() => null);
-
-    console.log('[GitHub Deploy] SHA Request Status:', shaStatus);
-    console.log('[GitHub Deploy] SHA Response:', shaResponseBody);
-
-    if (existing.ok && shaResponseBody?.sha) {
-      sha = shaResponseBody.sha;
-    }
-  } catch(e) {
-    console.warn('[GitHub Deploy] SHA fetch failed, continuing deployment without SHA:', e);
-  }
-
-  // UTF-8 Safe Base64 encoding
-  const encoder = new TextEncoder();
-  const bytes = encoder.encode(html);
-  let binary = '';
-  const chunkLength = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunkLength) {
-    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkLength));
-  }
-  const content = btoa(binary);
-
-  // Push to GitHub
-  const body = {
-    message: `Deploy: ${c.name} (@${c.username}) — ${new Date().toISOString()}`,
-    content,
-    branch
-  };
-  if (sha) body.sha = sha;
-
-  const res = await fetch(apiBase, {
-    method: 'PUT',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Accept': 'application/vnd.github.v3+json',
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(body)
-  });
-
-  const deployStatus = res.status;
-  const deployResponseBody = await res.json().catch(() => ({}));
-
-  console.log('[GitHub Deploy] Deploy Request Status:', deployStatus);
-  console.log('[GitHub Deploy] Deploy Response Body:', deployResponseBody);
-
-  if (!res.ok) {
-    const ghMessage = deployResponseBody?.message || 'No message provided';
-    let msg = `GitHub Error ${deployStatus}: ${ghMessage}`;
-
-    if (deployStatus === 401) {
-      msg = `GitHub 401 — Invalid/Bad token (${ghMessage}). Token exp/invalid hai! Settings mein jaake new token daalo.`;
-    } else if (deployStatus === 403) {
-      msg = `GitHub 403 — Token permission issue (${ghMessage}). Fine-grained token permissions check karo (Contents: Read and write).`;
-    } else if (deployStatus === 404) {
-      msg = `GitHub 404 — Repo or file not found (${ghMessage}). Possible reasons:\n1. Repo name ("${repo}") ya Branch ("${branch}") galat hai.\n2. GitHub token mein Repo/Contents write permission nahi hai (so GitHub hides private repo with 404).\n3. Settings mein Repo ("pikavika77/moonlightx"), Branch ("main") aur Token check karke Save karo.`;
-    } else if (deployStatus === 422) {
-      msg = `GitHub 422 — Invalid request (${ghMessage}). Check if branch "${branch}" exists in repository.`;
-    }
-
-    throw new Error(msg);
-  }
-
-  const deployedUrl = `https://moonlightx.qd.je/${c.username}/`;
-  console.log('[GitHub Deploy] Final Live URL:', deployedUrl);
-
-  // Save deployed URL to Firebase
-  try {
-    await update(ref(db, `superAdmin/clients/${clientId}`), { deployedUrl, deployedAt: new Date().toISOString() });
-    await update(ref(db, `clients/${clientId}/info`), { deployedUrl, deployedAt: new Date().toISOString() });
-  } catch(e) {
-    console.warn('[GitHub Deploy] Failed to update deployedUrl in Firebase:', e);
-  }
-
-  return deployedUrl;
-}
-
-// SETTINGS
-function saLoadSettings() {
-  const base       = 'https://moonlightx.qd.je/admin';
-  const publicBase = 'https://moonlightx.qd.je';
-
-  // Auto-save correct values to localStorage
-  localStorage.setItem('mnx_base_url',    base);
-  localStorage.setItem('mnx_public_url',  publicBase);
-
-  const baseEl   = document.getElementById('sa-base-url');
-  const publicEl = document.getElementById('sa-public-url');
-  if (baseEl)   { baseEl.value = base;       baseEl.readOnly = false; baseEl.style.opacity = '1'; baseEl.style.cursor = 'text'; }
-  if (publicEl) { publicEl.value = publicBase; publicEl.readOnly = false; publicEl.style.opacity = '1'; publicEl.style.cursor = 'text'; }
-
-  document.getElementById('sa-url-preview').textContent  = base + '/#/admin/username';
-  document.getElementById('sa-site-preview').textContent = publicBase + '/username/';
-
-  // Load GitHub settings
-  const ghT = document.getElementById('sa-gh-token');
-  const ghR = document.getElementById('sa-gh-repo');
-  const ghB = document.getElementById('sa-gh-branch');
-  const savedTok = localStorage.getItem('mnx_gh_token') || '';
-  if (ghT) ghT.value = savedTok;
-  if (ghR) ghR.value = ghGetRepo();
-  if (ghB) ghB.value = ghGetBranch();
-
-  checkPublicUrlWarning();
-}
-document.getElementById('sa-base-url').addEventListener('input', () => {
-  const v = document.getElementById('sa-base-url').value.trim().replace(/\/+$/, '');
-  document.getElementById('sa-url-preview').textContent  = (v || getBase()) + '/#/admin/username';
-  document.getElementById('sa-site-preview').textContent = getPublicBase() + '/username/';
-});
-document.getElementById('sa-save-base').addEventListener('click', () => {
-  let url = document.getElementById('sa-base-url').value.trim().replace(/\/index\.(html?|php)$/i, '').replace(/\/+$/, '');
-  if (!url) url = getDefaultBase();
-  localStorage.setItem('mnx_base_url', url);
-  document.getElementById('sa-base-url').value = url;
-
-  // Save public site URL
-  const pubUrl = (document.getElementById('sa-public-url')?.value||'').trim().replace(/\/index\.(html?|php)$/i,'').replace(/\/+$/,'');
-  if (pubUrl) {
-    localStorage.setItem('mnx_public_url', pubUrl);
-    set(ref(db,'superAdmin/settings/publicUrl'), pubUrl).catch(console.warn);
-    set(ref(db,'superAdmin/settings/adminUrl'), url).catch(console.warn);
-  }
-
-  checkPublicUrlWarning();
-  toast('✅ URLs save ho gaye!');
-  saAddLog('edit','URLs — Admin: '+url+' | Public: '+(pubUrl||'auto-detect'));
-});
-
-// GITHUB SETTINGS SAVE
-document.getElementById('sa-save-gh')?.addEventListener('click', () => {
-  const token  = (document.getElementById('sa-gh-token')?.value || '').trim();
-  const repo   = (document.getElementById('sa-gh-repo')?.value || '').trim() || 'pikavika77/moonlightx';
-  const branch = (document.getElementById('sa-gh-branch')?.value || '').trim() || 'main';
-  const status = document.getElementById('sa-gh-status');
-
-  if (!token) {
-    status.style.display = 'block';
-    status.style.color   = 'var(--red)';
-    status.textContent   = '❌ Token daalo pehle!';
-    setTimeout(() => { status.style.display = 'none'; }, 3000);
-    return;
-  }
-
-  localStorage.setItem('mnx_gh_token',  token);
-  localStorage.setItem('mnx_gh_repo',   repo);
-  localStorage.setItem('mnx_gh_branch', branch);
-
-  status.style.display = 'block';
-  status.style.color   = 'var(--grn)';
-  status.textContent   = `✅ Token saved! Deploy ab kaam karega.`;
-  toast('✅ GitHub token save ho gaya!');
-  setTimeout(() => { status.style.display = 'none'; }, 4000);
-});
-
-// ACTIVITY CONTROLS
-document.getElementById('sa-log-filter').addEventListener('change', saRenderLog);
-document.getElementById('sa-btn-clr-log').addEventListener('click', () => {
-  if(!confirm('Clear all logs?')) return;
-  saActLog=[]; localStorage.setItem('sa_log','[]');
-  document.getElementById('sa-nb-log').textContent='0';
-  saRenderLog(); saRenderDashLog();
-  toast('Log cleared');
-});
-
-// ══════════════════════════════════════════════════════════════════════
-// ── CLIENT ADMIN ───────────────────────────────────════════════════════
-// ══════════════════════════════════════════════════════════════════════
-
-function clShowPage(name) {
-  document.querySelectorAll('#view-client .page').forEach(p => p.classList.remove('on'));
-  document.querySelectorAll('[data-cl-page]').forEach(i => i.classList.remove('on'));
-  document.getElementById('cl-page-'+name)?.classList.add('on');
-  document.querySelector(`[data-cl-page="${name}"]`)?.classList.add('on');
-  if(name==='earning') clRenderEarning();
-  if(name==='profile')  clLoadProfile();
-  if(name==='reports')  clInitReports();
-  if(name==='hero')     clLoadHero();
-}
-
-async function clLoadHero() {
-  const clientId = clClientData?.id;
-  if (!clientId) return;
-  const clientName = clClientData?.name || 'Gallery';
-  const defaultTitle = `${clientName} Premium HD Showcase`;
-  const defaultSubtitle = `Exclusive high resolution curated adult gallery photography for ${clientName}.`;
-  const defaultBtn = `View Featured Gallery`;
-  try {
-    const snap = await get(ref(db, `clients/${clientId}/info/hero`));
-    if (snap.exists()) {
-      const h = snap.val();
-      if (document.getElementById('cl-hero-title'))    document.getElementById('cl-hero-title').value = h.title || defaultTitle;
-      if (document.getElementById('cl-hero-subtitle')) document.getElementById('cl-hero-subtitle').value = h.subtitle || defaultSubtitle;
-      if (document.getElementById('cl-hero-btn'))      document.getElementById('cl-hero-btn').value = h.buttonText || defaultBtn;
-      if (document.getElementById('cl-hero-bg'))       document.getElementById('cl-hero-bg').value = h.bgImage || '';
-    } else {
-      if (document.getElementById('cl-hero-title'))    document.getElementById('cl-hero-title').value = defaultTitle;
-      if (document.getElementById('cl-hero-subtitle')) document.getElementById('cl-hero-subtitle').value = defaultSubtitle;
-      if (document.getElementById('cl-hero-btn'))      document.getElementById('cl-hero-btn').value = defaultBtn;
-    }
-  } catch(e) {
-    console.warn('clLoadHero error:', e);
-  }
-}
-
-async function clSaveHero() {
-  const clientId = clClientData?.id;
-  if (!clientId) return;
-  const statusEl = document.getElementById('cl-hero-status');
-  const clientName = clClientData?.name || 'Gallery';
-  const heroData = {
-    title:      document.getElementById('cl-hero-title')?.value.trim() || `${clientName} Premium HD Showcase`,
-    subtitle:   document.getElementById('cl-hero-subtitle')?.value.trim() || `Exclusive high resolution curated adult gallery photography for ${clientName}.`,
-    buttonText: document.getElementById('cl-hero-btn')?.value.trim() || `View Featured Gallery`,
-    bgImage:    document.getElementById('cl-hero-bg')?.value.trim() || ''
-  };
-  try {
-    await set(ref(db, `clients/${clientId}/info/hero`), heroData);
-    await set(ref(db, `superAdmin/clients/${clientId}/hero`), heroData).catch(() => {});
-    await update(ref(db, `superAdmin/clients/${clientId}`), { hero: heroData }).catch(() => {});
-    await update(ref(db, `clients/${clientId}/info`), { hero: heroData }).catch(() => {});
-    if (statusEl) {
-      statusEl.style.display = 'block';
-      statusEl.style.color = 'var(--grn)';
-      statusEl.textContent = '✅ Hero Section saved successfully!';
-      setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
-    }
-    toast('✅ Hero Section saved!');
-  } catch(e) {
-    if (statusEl) {
-      statusEl.style.display = 'block';
-      statusEl.style.color = 'var(--red)';
-      statusEl.textContent = '❌ ' + e.message;
-    }
-    toast('❌ ' + e.message, 'err');
-  }
-}
-document.querySelectorAll('[data-cl-page]').forEach(el => el.addEventListener('click', () => clShowPage(el.dataset.clPage)));
-document.querySelectorAll('[data-cl-goto]').forEach(el  => el.addEventListener('click', () => clShowPage(el.dataset.clGoto)));
-document.getElementById('cl-p-save')?.addEventListener('click', clSaveProfile);
-document.getElementById('cl-p-reset')?.addEventListener('click', clResetProfile);
-
-function clInitDB(clientId) {
-  if (!clientId) return;
-
-  onValue(ref(db,`clients/${clientId}/images`), snap => {
-    clImages = snapToArray(snap);
-    document.getElementById('cl-db-st').textContent  = 'Live';
-    document.getElementById('cl-nb-img').textContent = clImages.length;
-    document.getElementById('cl-d-images').textContent = clImages.length;
-    clRenderTable(); clRenderDashImgs(); clPopulateCatFilter();
-  }, err => {
-    console.error('clInitDB images error:', err);
-    document.getElementById('cl-db-st').textContent = 'Error';
-  });
-
-  onValue(ref(db,`clients/${clientId}/categories`), snap => {
-    clCats = snapToArray(snap);
-    document.getElementById('cl-nb-cat').textContent = clCats.length;
-    clRenderCatTable(); clPopulateCatDropdowns();
-  }, err => {
-    console.error('clInitDB categories error:', err);
-  });
-
-  const handleClientDataSnap = snap => {
-    if(!snap.exists()) return;
-    clClientData = { ...clClientData, ...snap.val() };
-    const d=clClientData, pct=d.earningPercent||40, earn=(d.totalEarning||0)*pct/100;
-    document.getElementById('cl-d-visits').textContent = (d.totalVisits||0).toLocaleString();
-    document.getElementById('cl-d-today').textContent  = (d.todayVisits||0).toLocaleString();
-    document.getElementById('cl-d-earn').textContent   = '₹'+earn.toFixed(0);
-    document.getElementById('cl-d-pct').textContent    = pct+'%';
-    document.getElementById('cl-e-total').textContent  = '₹'+earn.toFixed(0);
-    document.getElementById('cl-e-pct').textContent    = pct+'%';
-    const month = (d.thisMonthEarning||0)*pct/100;
-    document.getElementById('cl-d-month').textContent  = '₹'+month.toFixed(0);
-    const pctBar = Math.min((earn/1000)*100,100);
-    document.getElementById('cl-earn-fill').style.width   = pctBar+'%';
-    document.getElementById('cl-earn-pct-lbl').textContent= pctBar.toFixed(0)+'%';
-    clLoadProfile();
-  };
-
-  onValue(ref(db,`superAdmin/clients/${clientId}`), handleClientDataSnap, err => {
-    console.warn('clInitDB superAdmin client listener warning:', err);
-  });
-
-  onValue(ref(db,`clients/${clientId}/info`), handleClientDataSnap, err => {
-    console.warn('clInitDB clients info listener warning:', err);
-  });
-}
-
-// ── PROFILE / SOCIAL LINKS ─────────────────────────────────────────────
-
-function clLoadProfile() {
-  if (!clClientData) return;
-  const p = clClientData.profile || {};
-  document.getElementById('cl-p-name').value      = clClientData.name  || p.name      || '';
-  document.getElementById('cl-p-bio').value       = p.bio       || '';
-  document.getElementById('cl-p-avatar').value    = p.avatar    || '';
-  document.getElementById('cl-p-instagram').value = p.instagram || '';
-  document.getElementById('cl-p-telegram').value  = p.telegram  || '';
-}
-
-async function clSaveProfile() {
-  const btn = document.getElementById('cl-p-save');
-  const msg = document.getElementById('cl-p-msg');
-  btn.disabled = true;
-  btn.textContent = 'Saving...';
-  try {
-    const profile = {
-      bio:       document.getElementById('cl-p-bio').value.trim(),
-      avatar:    document.getElementById('cl-p-avatar').value.trim(),
-      instagram: document.getElementById('cl-p-instagram').value.trim(),
-      telegram:  document.getElementById('cl-p-telegram').value.trim(),
-    };
-    await set(ref(db, `clients/${clClientData?.id}/info/profile`), profile);
-    msg.style.display = 'block';
-    msg.style.color   = 'var(--grn)';
-    msg.textContent   = '✅ Profile saved! Visitors ko abhi dikhega.';
-    setTimeout(() => { msg.style.display = 'none'; }, 4000);
-  } catch(e) {
-    msg.style.display = 'block';
-    msg.style.color   = 'var(--red)';
-    msg.textContent   = '❌ Save failed: ' + e.message;
-  }
-  btn.disabled = false;
-  btn.textContent = '💾 Save Profile';
-}
-
-function clResetProfile() {
-  clLoadProfile();
-  const msg = document.getElementById('cl-p-msg');
-  msg.style.display = 'block';
-  msg.style.color   = 'var(--mu)';
-  msg.textContent   = 'Reset ho gaya.';
-  setTimeout(() => { msg.style.display = 'none'; }, 2000);
-}
-
-
-function clRenderDashImgs() {
-  document.getElementById('cl-dash-imgs').innerHTML = clImages.slice(0,12).map(img=>`
-    <div style="cursor:pointer" data-edit-img="${escapeHTML(img.id)}" title="${escapeHTML(img.title||'')}">
-      <img src="${escapeHTML(img.thumbnailUrl||'')}" onerror="this.src=''" alt=""
-        style="width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:7px;border:1px solid var(--br)"/>
-    </div>`).join('') || '<div style="color:var(--mu);font-size:12px">No images yet</div>';
-  document.querySelectorAll('[data-edit-img]').forEach(el => el.addEventListener('click', () => clOpenEditImg(el.dataset.editImg)));
-}
-
-function clPopulateCatFilter() {
-  const sel = document.getElementById('cl-f-cat');
-  if(!sel) return;
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">All Categories</option>';
-  [...new Set(clImages.map(i=>i.category).filter(Boolean))].sort().forEach(c => {
-    const o=document.createElement('option'); o.value=c; o.textContent=c; if(c===cur) o.selected=true; sel.appendChild(o);
-  });
-}
-
-function clRenderTable() {
-  const q    = (document.getElementById('cl-q-img')?.value||'').toLowerCase();
-  const fcat = document.getElementById('cl-f-cat')?.value||'';
-  const list = clImages.filter(img => {
-    const mq = !q||[img.title,img.id,img.modelName].some(s=>(s||'').toLowerCase().includes(q));
-    return mq && (!fcat||img.category===fcat);
-  });
-  document.getElementById('cl-img-foot').textContent = `${list.length} of ${clImages.length} images`;
-  document.getElementById('cl-img-tbody').innerHTML = list.length ? list.map(img=>`
-    <tr>
-      <td><img class="thumb" src="${escapeHTML(img.thumbnailUrl||'')}" onerror="this.src=''" alt=""/></td>
-      <td><div style="font-weight:700;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHTML(img.title||'—')}</div>
-          <div style="font-size:10px;color:var(--mu);font-family:monospace">${escapeHTML(img.id)}</div></td>
-      <td><span class="tag cat">${escapeHTML(img.category||'—')}</span></td>
-      <td>
-        ${img.isFeatured?'<span class="tag ft">⭐</span>':''}
-        ${img.isTrending?'<span class="tag grn">🔥</span>':''}
-        ${img.isNew?'<span class="tag ylw">✨</span>':''}
-      </td>
-      <td><div style="font-size:10px;color:var(--mu)">👁 ${(img.views||0).toLocaleString()}</div>
-          <div style="font-size:10px;color:var(--mu)">❤️ ${(img.likes||0).toLocaleString()}</div></td>
-      <td><div class="arow">
-        <button class="btn btn-g btn-xs" data-edit-img="${escapeHTML(img.id)}">✏️</button>
-        <button class="btn btn-d btn-xs" data-del-img="${escapeHTML(img.id)}" data-dtitle="${escapeHTML(img.title||'')}">🗑</button>
-      </div></td>
-    </tr>`).join('')
-  : '<tr><td colspan="6"><div class="empty"><div class="eic">🖼️</div>No images found</div></td></tr>';
-  document.querySelectorAll('[data-edit-img]').forEach(btn => btn.addEventListener('click', () => clOpenEditImg(btn.dataset.editImg)));
-  document.querySelectorAll('[data-del-img]').forEach(btn  => btn.addEventListener('click', () => clDeleteImg(btn.dataset.delImg, btn.dataset.dtitle)));
-}
-['cl-q-img','cl-f-cat'].forEach(id => {
-  document.getElementById(id)?.addEventListener('input', clRenderTable);
-  document.getElementById(id)?.addEventListener('change', clRenderTable);
-});
-
-// IMAGE MODAL
-function clPopulateCatDropdowns() {
-  const sel=document.getElementById('cl-m-cat');
-  if(!sel) return;
-  const cur=sel.value;
-  sel.innerHTML='<option value="general">General</option>';
-  clCats.forEach(c => { const o=document.createElement('option'); o.value=c.id; o.textContent=c.name; if(c.id===cur) o.selected=true; sel.appendChild(o); });
-}
-
-function clClearImgForm() {
-  ['cl-m-id','cl-m-slug','cl-m-title','cl-m-desc','cl-m-thumb','cl-m-hires','cl-m-watch','cl-m-download','cl-m-gallery','cl-m-model','cl-m-res','cl-m-size','cl-m-tags','cl-m-up','cl-m-views','cl-m-likes','cl-m-comments','cl-m-compliance'].forEach(id=>{
-    const el = document.getElementById(id);
-    if (el) el.value = '';
-  });
-  ['cl-m-ft','cl-m-tr','cl-m-pp','cl-m-nw'].forEach(id=>{
-    const el = document.getElementById(id);
-    if (el) el.checked = false;
-  });
-  if (document.getElementById('cl-m-aspect')) document.getElementById('cl-m-aspect').value='portrait';
-  if (document.getElementById('cl-m-fmt')) document.getElementById('cl-m-fmt').value='WebP';
-  if (document.getElementById('cl-p-thumb')) document.getElementById('cl-p-thumb').style.display='none';
-  if (document.getElementById('cl-p-hires')) document.getElementById('cl-p-hires').style.display='none';
-}
-
-function clOpenAddImg() {
-  clEditImgId=null;
-  document.getElementById('cl-im-title').textContent='➕ Add Image';
-  document.getElementById('cl-im-save').textContent='💾 Save Image';
-  clClearImgForm();
-  clPopulateCatDropdowns();
-  prefillImageDefaults();
-  document.getElementById('cl-m-id').disabled=false;
-  document.getElementById('cl-img-modal').style.display='flex';
-}
-function clOpenEditImg(id) {
-  const img=clImages.find(i=>i.id===id); if(!img) return;
-  clEditImgId=id;
-  document.getElementById('cl-im-title').textContent='✏️ Edit Image';
-  document.getElementById('cl-im-save').textContent='💾 Update';
-  clPopulateCatDropdowns();
-  document.getElementById('cl-m-id').value=img.id||''; document.getElementById('cl-m-id').disabled=true;
-  document.getElementById('cl-m-slug').value=img.slug||'';
-  document.getElementById('cl-m-title').value=img.title||'';
-  document.getElementById('cl-m-desc').value=img.description||'';
-  document.getElementById('cl-m-cat').value=img.category||'general';
-  document.getElementById('cl-m-aspect').value=img.aspectRatio||'portrait';
-  document.getElementById('cl-m-thumb').value=img.thumbnailUrl||'';
-  document.getElementById('cl-m-hires').value=img.highResUrl||'';
-  document.getElementById('cl-m-watch').value=img.watchUrl||'';
-  document.getElementById('cl-m-download').value=img.downloadUrl||'';
-  document.getElementById('cl-m-gallery').value=(img.galleryImages||[]).join('\n');
-  document.getElementById('cl-m-model').value=img.modelName||'';
-  document.getElementById('cl-m-res').value=img.resolution||'3830x5126';
-  document.getElementById('cl-m-fmt').value=img.format||'WebP (Optimized)';
-  document.getElementById('cl-m-size').value=img.fileSize||'45';
-  document.getElementById('cl-m-views').value=img.views!==undefined?img.views:1000;
-  document.getElementById('cl-m-likes').value=img.likes!==undefined?img.likes:100;
-  if (document.getElementById('cl-m-comments')) document.getElementById('cl-m-comments').value=img.comments!==undefined?img.comments:10;
-  if (document.getElementById('cl-m-compliance')) document.getElementById('cl-m-compliance').value=img.compliance||'18+ Consenting Adult';
-  document.getElementById('cl-m-up').value=img.uploadedAt||'';
-  document.getElementById('cl-m-tags').value=Array.isArray(img.tags)?img.tags.join(', '):(img.tags||'glamour, hd, premium, 18+');
-  document.getElementById('cl-m-ft').checked=!!img.isFeatured;
-  document.getElementById('cl-m-tr').checked=!!img.isTrending;
-  document.getElementById('cl-m-pp').checked=!!img.isPopular;
-  document.getElementById('cl-m-nw').checked=!!img.isNew;
-  clPrevImg('cl-m-thumb','cl-p-thumb'); clPrevImg('cl-m-hires','cl-p-hires');
-  document.getElementById('cl-img-modal').style.display='flex';
-}
-
-document.getElementById('cl-btn-add-img').addEventListener('click', clOpenAddImg);
-document.getElementById('cl-btn-add-img-page').addEventListener('click', clOpenAddImg);
-document.getElementById('cl-im-cancel').addEventListener('click', ()=>document.getElementById('cl-img-modal').style.display='none');
-['cl-m-thumb','cl-m-hires'].forEach(id=>document.getElementById(id).addEventListener('input',()=>{ clPrevImg('cl-m-thumb','cl-p-thumb'); clPrevImg('cl-m-hires','cl-p-hires'); }));
-
-document.getElementById('cl-m-title')?.addEventListener('input', () => autoDeriveModel('cl-m-title', 'cl-m-model'));
-document.getElementById('sa-gadd-title')?.addEventListener('input', () => autoDeriveModel('sa-gadd-title', 'sa-gadd-desc'));
-
-document.getElementById('cl-im-save').addEventListener('click', async ()=>{
-  const clientId = clClientData?.id; if(!clientId) return;
-  const id=document.getElementById('cl-m-id').value.trim(), title=document.getElementById('cl-m-title').value.trim();
-  const thumb=document.getElementById('cl-m-thumb').value.trim(), hires=document.getElementById('cl-m-hires').value.trim();
-  const slug=document.getElementById('cl-m-slug').value.trim();
-  if(!id||!title||!thumb||!hires||!slug){toast('❌ ID, Slug, Title, Thumb & HiRes required!','err');return;}
-  const watchUrl = document.getElementById('cl-m-watch').value.trim();
-  const downloadUrl = document.getElementById('cl-m-download').value.trim();
-  const data={
-    id,slug,title,description:document.getElementById('cl-m-desc').value.trim(),
-    category:document.getElementById('cl-m-cat').value,aspectRatio:document.getElementById('cl-m-aspect').value,
-    thumbnailUrl:thumb,highResUrl:hires,watchUrl,downloadUrl,
-    galleryImages:document.getElementById('cl-m-gallery').value.trim().split('\n').map(s=>s.trim()).filter(Boolean),
-    modelName:document.getElementById('cl-m-model').value.trim(),
-    resolution:document.getElementById('cl-m-res').value.trim()||'3830x5126',
-    format:document.getElementById('cl-m-fmt').value||'WebP (Optimized)',
-    fileSize:document.getElementById('cl-m-size').value.trim()||'45',
-    compliance:document.getElementById('cl-m-compliance')?.value.trim()||'18+ Consenting Adult',
-    views:parseInt(document.getElementById('cl-m-views').value)||0,
-    likes:parseInt(document.getElementById('cl-m-likes').value)||0,
-    comments:parseInt(document.getElementById('cl-m-comments')?.value)||0,
-    uploadedAt:document.getElementById('cl-m-up').value.trim()||'Just now',
-    tags:document.getElementById('cl-m-tags').value.split(',').map(s=>s.trim()).filter(Boolean),
-    isFeatured:document.getElementById('cl-m-ft').checked,isTrending:document.getElementById('cl-m-tr').checked,
-    isPopular:document.getElementById('cl-m-pp').checked,isNew:document.getElementById('cl-m-nw').checked,
-    width:0,height:0,
-  };
-  const btn=document.getElementById('cl-im-save'); btn.textContent='⏳...'; btn.disabled=true;
-  try{
-    await set(ref(db,`clients/${clientId}/images/${id}`),data);
-try{localStorage.removeItem('mnx_ts_'+clientId);localStorage.removeItem('mnx_img_'+clientId);}catch(e){}
-    toast(`✅ Image ${clEditImgId?'updated':'saved'}!`);
-    document.getElementById('cl-img-modal').style.display='none';
-  }catch(e){toast('❌ '+e.message,'err');}
-  finally{btn.textContent='💾 Save Image';btn.disabled=false;}
-});
-
-async function clDeleteImg(id,title){
-  if(!confirm(`Delete "${title}"?`)) return;
-  try{ await remove(ref(db,`clients/${clClientData?.id}/images/${id}`)); try{localStorage.removeItem('mnx_ts_'+clClientData?.id);localStorage.removeItem('mnx_img_'+clClientData?.id);}catch(e){} toast('🗑️ Deleted'); }
-  catch(e){ toast('❌ '+e.message,'err'); }
-}
-
-function clPrevImg(inId,prevId){
-  const url=document.getElementById(inId)?.value.trim(), img=document.getElementById(prevId);
-  if(!img) return;
-  if(url){img.src=url;img.style.display='block';img.onerror=()=>img.style.display='none';}
-  else img.style.display='none';
-}
-
-// CATEGORIES
-function clRenderCatTable(){
-  document.getElementById('cl-cat-tbody').innerHTML = clCats.length ? clCats.map(cat=>{
-    const cnt=clImages.filter(i=>i.category===cat.id).length;
     return `<tr>
-      <td><code style="font-size:11px;background:var(--s2);padding:2px 6px;border-radius:4px">${escapeHTML(cat.id)}</code></td>
-      <td style="font-weight:700">${escapeHTML(cat.name)}</td>
-      <td><span class="tag cat">${cnt}</span></td>
-      <td><div class="arow">
-        <button class="btn btn-g btn-xs" data-ecat="${escapeHTML(cat.id)}">✏️</button>
-        <button class="btn btn-d btn-xs" data-dcat="${escapeHTML(cat.id)}" data-dcname="${escapeHTML(cat.name)}">🗑</button>
-      </div></td>
+      <td><strong style="color:var(--tx)">${escapeHTML(username)}</strong></td>
+      <td style="font-weight:600">${escapeHTML(displayName)}</td>
+      <td style="color:var(--ylw);font-weight:700">$${todayEarn}</td>
+      <td style="color:var(--grn);font-weight:700">$${totalEarn}</td>
+      <td>${views}</td>
+      <td>${clicks}</td>
+      <td style="color:var(--blu);font-weight:700">$${withdrawable}</td>
+      <td style="font-size:11px;color:var(--mu);font-family:monospace">${escapeHTML(lastUpdate)}</td>
     </tr>`;
   }).join('')
-  : '<tr><td colspan="4"><div class="empty"><div class="eic">📂</div>No categories</div></td></tr>';
-  document.querySelectorAll('[data-ecat]').forEach(btn=>btn.addEventListener('click',()=>clOpenEditCat(btn.dataset.ecat)));
-  document.querySelectorAll('[data-dcat]').forEach(btn=>btn.addEventListener('click',()=>clDeleteCat(btn.dataset.dcat,btn.dataset.dcname)));
+  : '<tr><td colspan="8"><div class="empty">No client earnings data</div></td></tr>';
 }
 
-function clOpenAddCat(){
-  clEditCatId=null;
-  document.getElementById('cl-cm-title').textContent='📂 Add Category';
-  document.getElementById('cl-cm-save').textContent='💾 Save';
-  ['cl-c-id','cl-c-name','cl-c-desc'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('cl-c-id').disabled=false;
-  document.getElementById('cl-cat-modal').style.display='flex';
+document.getElementById('sa-q-earnings')?.addEventListener('input', saRenderEarningsTable);
+document.getElementById('sa-sort-earnings')?.addEventListener('change', saRenderEarningsTable);
+
+// ══════════════════════════════════════════════════════════════════════
+// ── WITHDRAWAL SYSTEM (SUPER ADMIN) ───────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════
+
+function saRenderWithdrawalsTable() {
+  const tbody = document.getElementById('sa-withdrawals-tbody');
+  if (!tbody) return;
+
+  tbody.innerHTML = saWithdrawals.length ? saWithdrawals.reverse().map(w => {
+    const statusTag = w.status === 'approved' ? 'grn' : (w.status === 'rejected' ? 'red' : 'ylw');
+    const reqDate   = w.requestDate ? new Date(w.requestDate).toLocaleString() : '—';
+
+    return `<tr>
+      <td><code style="font-size:11px">${escapeHTML(w.reqId)}</code></td>
+      <td><strong>${escapeHTML(w.username)}</strong></td>
+      <td style="color:var(--grn);font-weight:700">$${Number(w.amount || 0).toFixed(2)}</td>
+      <td style="font-size:11px;color:var(--mu);font-family:monospace">${escapeHTML(reqDate)}</td>
+      <td><span class="tag ${statusTag}">${escapeHTML(w.status || 'pending').toUpperCase()}</span></td>
+      <td style="font-size:11px;font-family:monospace">${escapeHTML(w.transactionId || '—')}</td>
+      <td>
+        ${w.status === 'pending' ? `
+          <div class="arow">
+            <button class="btn btn-grn btn-xs" onclick="saApproveWithdrawal('${escapeHTML(w.reqId)}', '${escapeHTML(w.username)}', ${w.amount})">✓ Approve</button>
+            <button class="btn btn-d btn-xs" onclick="saRejectWithdrawal('${escapeHTML(w.reqId)}')">✕ Reject</button>
+          </div>
+        ` : '—'}
+      </td>
+    </tr>`;
+  }).join('')
+  : '<tr><td colspan="7"><div class="empty">No withdrawal requests</div></td></tr>';
 }
-function clOpenEditCat(id){
-  const cat=clCats.find(c=>c.id===id); if(!cat) return;
-  clEditCatId=id;
-  document.getElementById('cl-cm-title').textContent='✏️ Edit Category';
-  document.getElementById('cl-cm-save').textContent='💾 Update';
-  document.getElementById('cl-c-id').value=cat.id; document.getElementById('cl-c-id').disabled=true;
-  document.getElementById('cl-c-name').value=cat.name||'';
-  document.getElementById('cl-c-desc').value=cat.description||'';
-  document.getElementById('cl-cat-modal').style.display='flex';
+
+async function saApproveWithdrawal(reqId, username, amount) {
+  const txId = prompt('Enter Transaction ID / Reference Number:');
+  if (!txId) return;
+
+  try {
+    await update(ref(db, `withdrawRequests/${reqId}`), {
+      status: 'approved',
+      transactionId: txId,
+      processedAt: new Date().toISOString()
+    });
+
+    // Deduct withdrawable balance
+    const clientSnap = await get(ref(db, `clients/${username}`));
+    if (clientSnap.exists()) {
+      const cur = clientSnap.val();
+      const newWithdrawable = Math.max(0, Number(cur.withdrawable || 0) - Number(amount));
+      await update(ref(db, `clients/${username}`), { withdrawable: newWithdrawable });
+    }
+
+    toast('✅ Withdrawal Approved');
+    saAddLog('edit', `Approved withdrawal of $${amount} for @${username}`);
+  } catch(e) {
+    toast('❌ ' + e.message, 'err');
+  }
 }
-document.getElementById('cl-btn-add-cat').addEventListener('click',clOpenAddCat);
-document.getElementById('cl-cm-cancel').addEventListener('click',()=>document.getElementById('cl-cat-modal').style.display='none');
-document.getElementById('cl-cm-save').addEventListener('click',async()=>{
-  const clientId=clClientData?.id; if(!clientId) return;
-  const id=document.getElementById('cl-c-id').value.trim().toLowerCase().replace(/\s+/g,'-');
-  const name=document.getElementById('cl-c-name').value.trim();
-  if(!id||!name){toast('❌ ID and Name required!','err');return;}
-  const data={id,name,description:document.getElementById('cl-c-desc').value.trim(),iconName:'Grid',slug:id,tags:[],count:0};
-  const btn=document.getElementById('cl-cm-save'); btn.textContent='⏳...'; btn.disabled=true;
-  try{
-    await set(ref(db,`clients/${clientId}/categories/${id}`),data);
-try{localStorage.removeItem('mnx_cts_'+clientId);localStorage.removeItem('mnx_cat_'+clientId);}catch(e){}
-    toast(`✅ Category "${name}" saved!`);
-    document.getElementById('cl-cat-modal').style.display='none';
-  }catch(e){toast('❌ '+e.message,'err');}
-  finally{btn.textContent='💾 Save';btn.disabled=false;}
+
+async function saRejectWithdrawal(reqId) {
+  if (!confirm('Reject this withdrawal request?')) return;
+  try {
+    await update(ref(db, `withdrawRequests/${reqId}`), {
+      status: 'rejected',
+      processedAt: new Date().toISOString()
+    });
+    toast('Request rejected');
+    saAddLog('edit', `Rejected withdrawal request ${reqId}`);
+  } catch(e) {
+    toast('❌ ' + e.message, 'err');
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ── CLIENT ADMIN DASHBOARD & WITHDRAWAL REQUESTS ──────────────────────
+// ══════════════════════════════════════════════════════════════════════
+
+function clInitDB(username) {
+  if (!username) return;
+
+  // Realtime listener for client's own node
+  onValue(ref(db, `clients/${username}`), snap => {
+    if (!snap.exists()) return;
+    clClientData = { ...clClientData, ...snap.val() };
+    const d = clClientData;
+
+    document.getElementById('cl-db-st').textContent = 'Live';
+    document.getElementById('cl-d-displayname').textContent = d.displayName || d.name || username;
+    document.getElementById('cl-d-today-earn').textContent   = '$' + Number(d.today || 0).toFixed(2);
+    document.getElementById('cl-d-total-earn').textContent   = '$' + Number(d.earnings || d.totalEarning || 0).toFixed(2);
+    document.getElementById('cl-d-total-views').textContent  = Number(d.totalViews || 0).toLocaleString();
+    document.getElementById('cl-d-total-clicks').textContent = Number(d.totalClicks || 0).toLocaleString();
+    document.getElementById('cl-d-withdrawable').textContent = '$' + Number(d.withdrawable || 0).toFixed(2);
+
+    if (document.getElementById('cl-e-total-val')) {
+      document.getElementById('cl-e-total-val').textContent = '$' + Number(d.earnings || 0).toFixed(2);
+    }
+    if (document.getElementById('cl-e-withdrawable-val')) {
+      document.getElementById('cl-e-withdrawable-val').textContent = '$' + Number(d.withdrawable || 0).toFixed(2);
+    }
+  });
+
+  // Realtime listener for client's withdrawal requests
+  onValue(ref(db, 'withdrawRequests'), snap => {
+    if (!snap.exists()) {
+      clRenderWithdrawalHistory([]);
+      return;
+    }
+    const val = snap.val();
+    const myRequests = Object.entries(val)
+      .map(([id, r]) => ({ reqId: id, ...r }))
+      .filter(r => r.username === username);
+
+    clRenderWithdrawalHistory(myRequests);
+  });
+}
+
+function clRenderWithdrawalHistory(requests) {
+  const tbody = document.getElementById('cl-withdraw-tbody');
+  if (!tbody) return;
+
+  tbody.innerHTML = requests.length ? requests.reverse().map(r => {
+    const statusTag = r.status === 'approved' ? 'grn' : (r.status === 'rejected' ? 'red' : 'ylw');
+    const dateStr   = r.requestDate ? new Date(r.requestDate).toLocaleString() : '—';
+
+    return `<tr>
+      <td style="font-size:11px;font-family:monospace">${escapeHTML(dateStr)}</td>
+      <td style="color:var(--grn);font-weight:700">$${Number(r.amount || 0).toFixed(2)}</td>
+      <td><span class="tag ${statusTag}">${escapeHTML(r.status || 'pending').toUpperCase()}</span></td>
+      <td style="font-size:11px;font-family:monospace">${escapeHTML(r.transactionId || '—')}</td>
+    </tr>`;
+  }).join('')
+  : '<tr><td colspan="4"><div class="empty">No withdrawal requests yet</div></td></tr>';
+}
+
+document.getElementById('cl-btn-request-withdraw')?.addEventListener('click', async () => {
+  if (!clClientData) return;
+  const username = clClientData.username || clClientData.id;
+  const amountInput = document.getElementById('cl-withdraw-amount');
+  const txInput     = document.getElementById('cl-withdraw-tx');
+  const msgEl       = document.getElementById('cl-withdraw-msg');
+
+  const amount = parseFloat(amountInput?.value);
+  const txInfo = txInput?.value.trim() || '';
+
+  if (!amount || amount <= 0) {
+    if (msgEl) { msgEl.style.display = 'block'; msgEl.style.color = 'var(--red)'; msgEl.textContent = '❌ Valid amount required'; }
+    return;
+  }
+
+  const withdrawable = Number(clClientData.withdrawable || 0);
+  if (amount > withdrawable) {
+    if (msgEl) { msgEl.style.display = 'block'; msgEl.style.color = 'var(--red)'; msgEl.textContent = `❌ Insufficient balance. Maximum withdrawable: $${withdrawable.toFixed(2)}`; }
+    return;
+  }
+
+  const reqId = 'req_' + Date.now();
+  const reqData = {
+    username,
+    amount,
+    transactionId: txInfo,
+    status: 'pending',
+    requestDate: new Date().toISOString()
+  };
+
+  try {
+    await set(ref(db, `withdrawRequests/${reqId}`), reqData);
+    if (amountInput) amountInput.value = '';
+    if (txInput)     txInput.value = '';
+    if (msgEl) {
+      msgEl.style.display = 'block';
+      msgEl.style.color   = 'var(--grn)';
+      msgEl.textContent   = '✅ Withdrawal request submitted!';
+      setTimeout(() => { msgEl.style.display = 'none'; }, 4000);
+    }
+    toast('✅ Request submitted!');
+  } catch(e) {
+    if (msgEl) { msgEl.style.display = 'block'; msgEl.style.color = 'var(--red)'; msgEl.textContent = '❌ ' + e.message; }
+  }
 });
-async function clDeleteCat(id,name){
-  if(!confirm(`Delete "${name}"?`)) return;
-  try{ await remove(ref(db,`clients/${clClientData?.id}/categories/${id}`)); try{localStorage.removeItem('mnx_cts_'+clClientData?.id);localStorage.removeItem('mnx_cat_'+clClientData?.id);}catch(e){} toast('🗑️ Category deleted'); }
-  catch(e){ toast('❌ '+e.message,'err'); }
-}
 
-// EARNING
-function clRenderEarning(){
-  if(!clClientData) return;
-  const pct=clClientData.earningPercent||40;
-  const hist=clClientData.earningHistory||{};
-  document.getElementById('cl-earn-tbody').innerHTML = Object.values(hist).reverse().map(r=>`
-    <tr>
-      <td style="font-size:11px;font-family:monospace">${new Date(r.t).toLocaleDateString()}</td>
-      <td style="color:var(--grn)">₹${(r.amount||0).toFixed(0)}</td>
-      <td style="color:var(--blu);font-weight:700">₹${((r.amount||0)*pct/100).toFixed(0)}</td>
-      <td style="font-size:11px;color:var(--mu)">${escapeHTML(r.note||'—')}</td>
-    </tr>`).join('')
-  || '<tr><td colspan="4"><div class="empty"><div class="eic">💰</div>No earning history yet</div></td></tr>';
-}
-
-// ── SUPER ADMIN REPORTS ────────────────────────────────────────────────
-let saReportsList = [];
-let _saReportsListening = false;
-
-function saInitReports() {
-  if (_saReportsListening) {
-    saRenderReports();
-    return;
-  }
-  _saReportsListening = true;
-  onValue(ref(db, 'superAdmin/reports'), snap => {
-    saReportsList = [];
-    if (snap.exists()) {
-      const val = snap.val();
-      saReportsList = Object.entries(val).map(([id, r]) => ({ ...r, reportId: id }));
-    }
-    saRenderReports();
-  });
-}
-
-async function saRenderReports() {
-  const el = document.getElementById('sa-reports-list');
-  if (!el) return;
-  const nb = document.getElementById('sa-nb-reports');
-  const pendingCount = saReportsList.filter(r => r.status === 'pending').length;
-  if (nb) nb.textContent = pendingCount;
-
-  if (!saReportsList.length) {
-    el.innerHTML = '<div class="empty"><div class="eic">🚨</div>No reports found</div>';
-    return;
-  }
-
-  const sorted = [...saReportsList].sort((a,b) => new Date(b.reportedAt || 0) - new Date(a.reportedAt || 0));
-
-  let html = '';
-  for (const r of sorted) {
-    let imgThumb = '';
-    let imgTitle = r.imageTitle || r.imageId || 'Image';
-    try {
-      if (r.imagePath) {
-        const imgSnap = await get(ref(db, r.imagePath));
-        if (imgSnap.exists()) {
-          const imgData = imgSnap.val();
-          imgThumb = imgData.thumbnailUrl || imgData.thumb || imgData.thumbnail || imgData.url || imgData.highResUrl || imgData.hires || '';
-          imgTitle = imgData.title || imgTitle;
-        }
-      }
-    } catch(e) {}
-
-    const statusClass = r.status === 'reviewed' ? 'blu' : (r.status === 'removed' ? 'mu' : 'ylw');
-    const statusText  = (r.status || 'pending').toUpperCase();
-    const dateStr     = r.reportedAt ? new Date(r.reportedAt).toLocaleString() : '—';
-
-    html += `
-      <div class="card" style="padding:16px;margin:0;display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
-        ${imgThumb ? `<img src="${escapeHTML(imgThumb)}" style="width:90px;height:90px;object-fit:cover;border-radius:8px;border:1px solid var(--br)"/>` : `<div style="width:90px;height:90px;background:var(--s2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px">🖼️</div>`}
-        <div style="flex:1;min-width:200px">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-            <span style="font-weight:700;font-size:14px">${escapeHTML(imgTitle)}</span>
-            <span class="tag ${statusClass}">${escapeHTML(statusText)}</span>
-          </div>
-          <div style="font-size:12px;color:var(--mu);margin-bottom:4px">Client: <strong style="color:var(--tx)">${escapeHTML(r.clientName || r.clientId || 'Unknown')}</strong></div>
-          <div style="font-size:12px;color:var(--red);margin-bottom:4px">Reason: <strong>${escapeHTML(r.reason || 'Inappropriate')}</strong></div>
-          <div style="font-size:11px;color:var(--mu);font-family:monospace">Date: ${escapeHTML(dateStr)}</div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:8px;min-width:130px">
-          ${r.status !== 'reviewed' && r.status !== 'removed' ? `<button class="btn btn-b btn-xs" onclick="saMarkReportReviewed('${escapeHTML(r.reportId)}')">✓ Mark Reviewed</button>` : ''}
-          ${r.status !== 'removed' ? `<button class="btn btn-d btn-xs" onclick="saRemoveReportedImage('${escapeHTML(r.reportId)}', '${escapeHTML(r.clientId)}', '${escapeHTML(r.imageId)}')">🗑 Remove Image</button>` : ''}
-          <button class="btn btn-g btn-xs" onclick="saDismissReport('${escapeHTML(r.reportId)}')">✕ Dismiss</button>
-        </div>
-      </div>
-    `;
-  }
-  el.innerHTML = html;
-}
-
-async function saMarkReportReviewed(reportId) {
-  try {
-    await update(ref(db, `superAdmin/reports/${reportId}`), { status: 'reviewed' });
-    await update(ref(db, `reports/${reportId}`), { status: 'reviewed' }).catch(() => {});
-    toast('✅ Report marked as reviewed');
-  } catch(e) {
-    toast('❌ ' + e.message, 'err');
-  }
-}
-
-async function saRemoveReportedImage(reportId, clientId, imageId) {
-  if (!confirm('Are you sure you want to delete this reported image?')) return;
-  try {
-    const imgPath = clientId === 'global' ? `globalSite/images/${imageId}` : `clients/${clientId}/images/${imageId}`;
-    await remove(ref(db, imgPath));
-    await update(ref(db, `superAdmin/reports/${reportId}`), { status: 'removed' });
-    await update(ref(db, `reports/${reportId}`), { status: 'removed' }).catch(() => {});
-    toast('Image removed successfully');
-    saAddLog('del', `Removed reported image "${imageId}" from client "${clientId}"`);
-  } catch(e) {
-    toast('❌ ' + e.message, 'err');
-  }
-}
-
-async function saDismissReport(reportId) {
-  if (!confirm('Dismiss this report?')) return;
-  try {
-    await remove(ref(db, `superAdmin/reports/${reportId}`));
-    await remove(ref(db, `reports/${reportId}`)).catch(() => {});
-    toast('Report dismissed');
-  } catch(e) {
-    toast('❌ ' + e.message, 'err');
-  }
-}
-
-// ── CLIENT ADMIN REPORTS ───────────────────────────────────────────────
-let clReportsList = [];
-let _clReportsListening = false;
-
-function clInitReports() {
-  const clientId = clClientData?.id;
-  if (!clientId) return;
-
-  if (_clReportsListening) {
-    clRenderReports();
-    return;
-  }
-  _clReportsListening = true;
-  onValue(ref(db, 'reports'), snap => {
-    clReportsList = [];
-    if (snap.exists()) {
-      const val = snap.val();
-      clReportsList = Object.entries(val)
-        .map(([id, r]) => ({ ...r, reportId: id }))
-        .filter(r => r.clientId === clientId);
-    }
-    clRenderReports();
-  });
-}
-
-async function clRenderReports() {
-  const el = document.getElementById('cl-reports-list');
-  if (!el) return;
-  const nb = document.getElementById('cl-nb-reports');
-  if (nb) nb.textContent = clReportsList.length;
-
-  if (!clReportsList.length) {
-    el.innerHTML = '<div class="empty"><div class="eic">🚨</div>No reported images</div>';
-    return;
-  }
-
-  const sorted = [...clReportsList].sort((a,b) => new Date(b.reportedAt || 0) - new Date(a.reportedAt || 0));
-
-  let html = '';
-  for (const r of sorted) {
-    let imgThumb = '';
-    let imgTitle = r.imageTitle || r.imageId || 'Image';
-    try {
-      if (r.imagePath) {
-        const imgSnap = await get(ref(db, r.imagePath));
-        if (imgSnap.exists()) {
-          const imgData = imgSnap.val();
-          imgThumb = imgData.thumbnailUrl || imgData.thumb || imgData.thumbnail || imgData.url || imgData.highResUrl || imgData.hires || '';
-          imgTitle = imgData.title || imgTitle;
-        }
-      }
-    } catch(e) {}
-
-    const statusClass = r.status === 'reviewed' ? 'blu' : (r.status === 'removed' ? 'mu' : 'ylw');
-    const statusText  = (r.status || 'pending').toUpperCase();
-    const dateStr     = r.reportedAt ? new Date(r.reportedAt).toLocaleString() : '—';
-
-    html += `
-      <div class="card" style="padding:16px;margin:0;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
-        ${imgThumb ? `<img src="${escapeHTML(imgThumb)}" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--br)"/>` : `<div style="width:80px;height:80px;background:var(--s2);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px">🖼️</div>`}
-        <div style="flex:1;min-width:200px">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-            <span style="font-weight:700;font-size:14px">${escapeHTML(imgTitle)}</span>
-            <span class="tag ${statusClass}">${escapeHTML(statusText)}</span>
-          </div>
-          <div style="font-size:12px;color:var(--red);margin-bottom:4px">Reason: <strong>${escapeHTML(r.reason || 'Inappropriate')}</strong></div>
-          <div style="font-size:11px;color:var(--mu);font-family:monospace">Date: ${escapeHTML(dateStr)}</div>
-        </div>
-      </div>
-    `;
-  }
-  el.innerHTML = html;
-}
-
-// ── SUPER ADMIN ALL GALLERIES ──────────────────────────────────────────
-let saAllImages = [];
-
-function saInitAllGalleries() {
-  const sel = document.getElementById('sa-ag-client-filter');
-  if (sel) {
-    const curVal = sel.value;
-    sel.innerHTML = '<option value="">All Clients</option>' +
-      saClients.map(c => `<option value="${escapeHTML(c.id)}">${escapeHTML(c.name || c.username)}</option>`).join('');
-    sel.value = curVal;
-    sel.onchange = saRenderAllGalleries;
-  }
-  saFetchAllGalleries();
-}
-
-async function saFetchAllGalleries() {
-  saAllImages = [];
-  const grid = document.getElementById('sa-all-galleries-grid');
-  if (grid) grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="eic">⏳</div>Loading galleries...</div>';
-
-  for (const c of saClients) {
-    try {
-      const snap = await get(ref(db, `clients/${c.id}/images`));
-      if (snap.exists()) {
-        const imgs = snapToArray(snap);
-        let reportsMap = {};
-        try {
-          const rSnap = await get(ref(db, `clients/${c.id}/reports`));
-          if (rSnap.exists()) reportsMap = rSnap.val();
-        } catch(e){}
-
-        imgs.forEach(img => {
-          const reportCount = reportsMap[img.id]?.count || 0;
-          saAllImages.push({
-            ...img,
-            clientId: c.id,
-            clientName: c.name || c.username,
-            reportCount
-          });
-        });
-      }
-    } catch(e) {}
-  }
-  saRenderAllGalleries();
-}
-
-function saRenderAllGalleries() {
-  const grid = document.getElementById('sa-all-galleries-grid');
-  if (!grid) return;
-
-  const filterCid = document.getElementById('sa-ag-client-filter')?.value || '';
-  const filtered = filterCid ? saAllImages.filter(img => img.clientId === filterCid) : saAllImages;
-
-  if (!filtered.length) {
-    grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><div class="eic">🖼️</div>No images found</div>';
-    return;
-  }
-
-  grid.innerHTML = filtered.map(img => {
-    const thumb = img.thumbnailUrl || img.thumb || img.thumbnail || img.url || img.highResUrl || img.hires || '';
-    return `
-      <div style="background:var(--s1);border:1px solid var(--br);border-radius:12px;overflow:hidden;display:flex;flex-direction:column">
-        <div style="position:relative">
-          <img src="${escapeHTML(thumb)}" style="width:100%;height:140px;object-fit:cover;display:block" onerror="this.style.display='none'"/>
-          <span class="tag blu" style="position:absolute;top:6px;left:6px;font-size:10px;background:rgba(0,0,0,0.75)">${escapeHTML(img.clientName)}</span>
-        </div>
-        <div style="padding:10px;flex:1;display:flex;flex-direction:column;justify-content:space-between">
-          <div>
-            <div style="font-weight:700;font-size:12px;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHTML(img.title || img.id || '—')}</div>
-            <div style="display:flex;gap:8px;font-size:11px;color:var(--mu);margin-bottom:8px">
-              <span>👁 ${(img.views || 0).toLocaleString()}</span>
-              ${img.reportCount ? `<span style="color:var(--red);font-weight:700">🚨 ${img.reportCount}</span>` : ''}
-            </div>
-          </div>
-          <button class="btn btn-d btn-xs" style="width:100%" onclick="saDeleteGalleryImage('${escapeHTML(img.clientId)}', '${escapeHTML(img.id)}')">🗑 Delete</button>
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-async function saDeleteGalleryImage(clientId, imageId) {
-  if (!confirm('Delete this image from client gallery?')) return;
-  try {
-    await remove(ref(db, `clients/${clientId}/images/${imageId}`));
-    try {
-      const countRef = ref(db, `superAdmin/clients/${clientId}/imageCount`);
-      const snap = await get(countRef);
-      if (snap.exists() && snap.val() > 0) {
-        await set(countRef, snap.val() - 1);
-      }
-    } catch(e) {}
-
-    saAllImages = saAllImages.filter(i => !(i.clientId === clientId && i.id === imageId));
-    saRenderAllGalleries();
-    toast('Image deleted successfully');
-    saAddLog('del', `Deleted image "${imageId}" from client "${clientId}"`);
-  } catch(e) {
-    toast('❌ ' + e.message, 'err');
-  }
-}
-
-// ── EXPOSE WINDOW GLOBALS ──────────────────────────────────────────────
-window.saInitReports = saInitReports;
-window.saMarkReportReviewed = saMarkReportReviewed;
-window.saRemoveReportedImage = saRemoveReportedImage;
-window.saDismissReport = saDismissReport;
-window.clInitReports = clInitReports;
-window.saInitAllGalleries = saInitAllGalleries;
-window.saDeleteGalleryImage = saDeleteGalleryImage;
-window.clLoadHero = clLoadHero;
-window.clSaveHero = clSaveHero;
-window.saLoadHero = saLoadHero;
-window.saSaveHero = saSaveHero;
-window.prefillImageDefaults = prefillImageDefaults;
-
-// ── INIT ───────────────────────────────────────────────────────────────
-document.getElementById('sa-nb-log').textContent = saActLog.length;
-saRenderLog();
-
-getBase();
+// EXPOSE WINDOW GLOBALS
+window.saOpenAddClient        = saOpenAddClient;
+window.saOpenEditClient       = saOpenEditClient;
+window.saToggleDisableClient  = saToggleDisableClient;
+window.saDeleteClient         = saDeleteClient;
+window.saCopyClientUrl        = saCopyClientUrl;
+window.saApproveWithdrawal    = saApproveWithdrawal;
+window.saRejectWithdrawal     = saRejectWithdrawal;
