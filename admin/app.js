@@ -873,7 +873,7 @@ async function generateClientSiteHTML(clientId) {
   const heroBtnText = hero.buttonText || c.hero?.buttonText || `View Featured Gallery`;
   const heroBg = hero.bgImage || c.hero?.bgImage || '';
 
-  const esc = v => JSON.stringify(v || '');
+  const esc = v => JSON.stringify(v || '').replace(/<\/script/gi, '<\\/script');
 
   // Generated client site — globals set synchronously BEFORE app.js loads
   return `<!doctype html>
