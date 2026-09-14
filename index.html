@@ -498,16 +498,11 @@
           clientData = clientSnap.val();
           clientId = clientData.clientId || username;
         } else {
-          /* Fallback check in superAdmin/clients */
-          const snap = await get(ref(db, 'superAdmin/clients'));
-          if (snap.exists()) {
-            const clients = snap.val();
-            const clientEntry = Object.entries(clients)
-              .find(([id, c]) => c && (c.username === username || id === username));
-
-            if (clientEntry) {
-              [clientId, clientData] = clientEntry;
-            }
+          /* Also check directly if username is clientId or has info node at clients/${username}/info */
+          const directInfoSnap = await get(ref(db, 'clients/' + username + '/info'));
+          if (directInfoSnap.exists()) {
+            clientData = directInfoSnap.val();
+            clientId = username;
           }
         }
 

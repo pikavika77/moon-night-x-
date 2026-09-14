@@ -537,6 +537,19 @@ function saInitDB() {
     saUpdateDash();
     saRenderClients();
     saPopulateEarnSelect();
+
+    // Auto-sync public client mappings (clients/${username})
+    saClients.forEach(c => {
+      if (c.username) {
+        set(ref(db, `clients/${c.username}`), {
+          clientId: c.id,
+          username: c.username,
+          name: c.name || c.username,
+          status: c.status || 'active',
+          active: (c.status || 'active') === 'active' && c.active !== false
+        }).catch(() => {});
+      }
+    });
   }, err => {
     console.error('saInitDB error:', err);
     document.getElementById('sa-db-st').textContent = 'Error';
@@ -1236,9 +1249,13 @@ async function generateClientSiteHTML(clientId) {
       } catch(e) {}
     };
 
-    // Live profile update
+    // Live profile, ads, and hero update
     try {
-      const pSnap = await get(ref(db, 'clients/${id}/info/profile'));
+      const [pSnap, adsSnap, hSnap] = await Promise.all([
+        get(ref(db, 'clients/${id}/info/profile')),
+        get(ref(db, 'clients/${id}/info/ads')),
+        get(ref(db, 'clients/${id}/info/hero'))
+      ]);
       if (pSnap.exists()) {
         const p = pSnap.val();
         window.__mlxProfile = {
@@ -1250,6 +1267,25 @@ async function generateClientSiteHTML(clientId) {
             instagram: p.instagram || ${esc(instagram)},
             telegram:  p.telegram  || ${esc(telegram)}
           }
+        };
+      }
+      if (adsSnap.exists()) {
+        const ads = adsSnap.val();
+        window.__mlxAds = {
+          popunder:  ads.popunder  || ${esc(adPopunder)},
+          banner728: ads.banner728 || ${esc(adBanner728)},
+          banner320: ads.banner320 || ${esc(adBanner320)},
+          box300:    ads.box300    || ${esc(adBox300)},
+          smart:     ads.smart     || ${esc(adSmart)}
+        };
+      }
+      if (hSnap.exists()) {
+        const hero = hSnap.val();
+        window.__mlxHero = {
+          title:      hero.title      || ${esc(heroTitle)},
+          subtitle:   hero.subtitle   || ${esc(heroSubtitle)},
+          buttonText: hero.buttonText || ${esc(heroBtnText)},
+          bgImage:    hero.bgImage    || ${esc(heroBg)}
         };
       }
     } catch(e) {}
@@ -1557,6 +1593,20 @@ document.getElementById('sa-cm-save').addEventListener('click', async () => {
       const targetHero = data.hero || heroDefaults;
       await set(ref(db, `clients/${id}/info/hero`), targetHero);
       await set(ref(db, `superAdmin/clients/${id}/hero`), targetHero);
+
+      // Save public mapping at clients/${username}
+      await set(ref(db, `clients/${username}`), {
+        clientId: id,
+        username: username,
+        name: name,
+        status: data.status,
+        active: data.status === 'active'
+      });
+
+      // If username changed, delete old username mapping
+      if (existing && existing.username && existing.username !== username) {
+        await remove(ref(db, `clients/${existing.username}`)).catch(() => {});
+      }
     } catch(syncErr) {
       console.warn("Syncing to clients/info failed:", syncErr);
     }
@@ -2120,6 +2170,16 @@ document.getElementById('cl-p-reset')?.addEventListener('click', clResetProfile)
 function clInitDB(clientId) {
   if (!clientId) return;
 
+  if (clClientData && clClientData.username) {
+    set(ref(db, `clients/${clClientData.username}`), {
+      clientId: clientId,
+      username: clClientData.username,
+      name: clClientData.name || clClientData.username,
+      status: clClientData.status || 'active',
+      active: (clClientData.status || 'active') === 'active' && clClientData.active !== false
+    }).catch(() => {});
+  }
+
   onValue(ref(db,`clients/${clientId}/images`), snap => {
     clImages = snapToArray(snap);
     document.getElementById('cl-db-st').textContent  = 'Live';
@@ -2375,7 +2435,15 @@ document.getElementById('cl-im-save').addEventListener('click', async ()=>{
   const btn=document.getElementById('cl-im-save'); btn.textContent='⏳...'; btn.disabled=true;
   try{
     await set(ref(db,`clients/${clientId}/images/${id}`),data);
-try{localStorage.removeItem('mnx_ts_'+clientId);localStorage.removeItem('mnx_img_'+clientId);}catch(e){}
+    const uName = clClientData?.username;
+    try{
+      localStorage.removeItem('mnx_ts_'+clientId);
+      localStorage.removeItem('mnx_img_'+clientId);
+      if (uName) {
+        localStorage.removeItem('mnx_ts_'+uName);
+        localStorage.removeItem('mnx_img_'+uName);
+      }
+    }catch(e){}
     toast(`✅ Image ${clEditImgId?'updated':'saved'}!`);
     document.getElementById('cl-img-modal').style.display='none';
   }catch(e){toast('❌ '+e.message,'err');}
@@ -2384,7 +2452,20 @@ try{localStorage.removeItem('mnx_ts_'+clientId);localStorage.removeItem('mnx_img
 
 async function clDeleteImg(id,title){
   if(!confirm(`Delete "${title}"?`)) return;
-  try{ await remove(ref(db,`clients/${clClientData?.id}/images/${id}`)); try{localStorage.removeItem('mnx_ts_'+clClientData?.id);localStorage.removeItem('mnx_img_'+clClientData?.id);}catch(e){} toast('🗑️ Deleted'); }
+  try{
+    const cId = clClientData?.id;
+    const uName = clClientData?.username;
+    await remove(ref(db,`clients/${cId}/images/${id}`));
+    try{
+      localStorage.removeItem('mnx_ts_'+cId);
+      localStorage.removeItem('mnx_img_'+cId);
+      if (uName) {
+        localStorage.removeItem('mnx_ts_'+uName);
+        localStorage.removeItem('mnx_img_'+uName);
+      }
+    }catch(e){}
+    toast('🗑️ Deleted');
+  }
   catch(e){ toast('❌ '+e.message,'err'); }
 }
 
@@ -2443,7 +2524,15 @@ document.getElementById('cl-cm-save').addEventListener('click',async()=>{
   const btn=document.getElementById('cl-cm-save'); btn.textContent='⏳...'; btn.disabled=true;
   try{
     await set(ref(db,`clients/${clientId}/categories/${id}`),data);
-try{localStorage.removeItem('mnx_cts_'+clientId);localStorage.removeItem('mnx_cat_'+clientId);}catch(e){}
+    const uName = clClientData?.username;
+    try{
+      localStorage.removeItem('mnx_cts_'+clientId);
+      localStorage.removeItem('mnx_cat_'+clientId);
+      if (uName) {
+        localStorage.removeItem('mnx_cts_'+uName);
+        localStorage.removeItem('mnx_cat_'+uName);
+      }
+    }catch(e){}
     toast(`✅ Category "${name}" saved!`);
     document.getElementById('cl-cat-modal').style.display='none';
   }catch(e){toast('❌ '+e.message,'err');}
@@ -2451,7 +2540,20 @@ try{localStorage.removeItem('mnx_cts_'+clientId);localStorage.removeItem('mnx_ca
 });
 async function clDeleteCat(id,name){
   if(!confirm(`Delete "${name}"?`)) return;
-  try{ await remove(ref(db,`clients/${clClientData?.id}/categories/${id}`)); try{localStorage.removeItem('mnx_cts_'+clClientData?.id);localStorage.removeItem('mnx_cat_'+clClientData?.id);}catch(e){} toast('🗑️ Category deleted'); }
+  try{
+    const cId = clClientData?.id;
+    const uName = clClientData?.username;
+    await remove(ref(db,`clients/${cId}/categories/${id}`));
+    try{
+      localStorage.removeItem('mnx_cts_'+cId);
+      localStorage.removeItem('mnx_cat_'+cId);
+      if (uName) {
+        localStorage.removeItem('mnx_cts_'+uName);
+        localStorage.removeItem('mnx_cat_'+uName);
+      }
+    }catch(e){}
+    toast('🗑️ Category deleted');
+  }
   catch(e){ toast('❌ '+e.message,'err'); }
 }
 
