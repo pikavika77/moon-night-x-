@@ -22,6 +22,8 @@
       display: none !important;
     }
 
+
+
     /* Target the specific label structure React renders */
     .adsterra-top-leaderboard > div:first-child:not(iframe):not(script),
     .adsterra-native-incontent > div:first-child:not(iframe):not(script),
@@ -51,16 +53,19 @@
       function getUsernameFromPath() {
         var path = (window.location.pathname || '').replace(/^\/+|\/+$/g, '');
         var parts = path.split('/').filter(Boolean);
-        var excluded = ['admin', 'super', 'gallery', 'products', 'account', 'orders', 'index.html', 'app.js', 'app.css', 'favicon.ico', 'favicon.png'];
-        if (parts.length > 0 && excluded.indexOf(parts[0].toLowerCase()) === -1) {
-          return parts[0];
-        }
+        if (!parts.length || parts[0] === 'admin' || parts[0] === 'super' || parts[0] === 'gallery') return null;
+        return parts[0];
+      }
+
+      function getUsernameFromHash() {
         var hash = (window.location.hash || '').replace(/^#\/?/, '');
-        var hashParts = hash.split('/').filter(Boolean);
-        if (hashParts.length > 0 && excluded.indexOf(hashParts[0].toLowerCase()) === -1) {
-          return hashParts[0];
-        }
-        return null;
+        var parts = hash.split('/').filter(Boolean);
+        if (!parts.length || parts[0] === 'admin' || parts[0] === 'super' || parts[0] === 'gallery') return null;
+        return parts[0];
+      }
+
+      function getClientUsername() {
+        return getUsernameFromPath() || getUsernameFromHash();
       }
 
       var hash = window.location.hash || '';
@@ -70,24 +75,20 @@
         window.__mlxDirectImageId = directImgId;
       }
 
-      var username = getUsernameFromPath();
+      var username = getClientUsername();
       if (username) {
         var cachedCid = null;
         try { cachedCid = localStorage.getItem('mnx_client_id_' + username); } catch(e){}
         var cid = cachedCid || username;
-        window.__mlxImgPath        = 'clients/' + username + '/images';
-        window.__mlxCatPath        = 'clients/' + username + '/categories';
-        window.__mlxClientId       = cid;
-        window.__mlxClientUsername = username;
-        window.__mlxAdsterraPSID   = username + '001';
-        window.__mlxClientName     = username;
+        window.__mlxImgPath    = 'clients/' + cid + '/images';
+        window.__mlxCatPath    = 'clients/' + cid + '/categories';
+        window.__mlxClientId   = cid;
+        window.__mlxClientName = username;
       } else {
-        window.__mlxImgPath        = 'globalSite/images';
-        window.__mlxCatPath        = 'globalSite/categories';
-        window.__mlxClientId       = 'global';
-        window.__mlxClientUsername = '';
-        window.__mlxAdsterraPSID   = '';
-        window.__mlxClientName     = 'Moon Light X';
+        window.__mlxImgPath    = 'globalSite/images';
+        window.__mlxCatPath    = 'globalSite/categories';
+        window.__mlxClientId   = 'global';
+        window.__mlxClientName = 'Moon Light X';
       }
 
       // Load cached ads & profile synchronously if present
@@ -224,20 +225,23 @@
     const fbApp = getApps().length ? getApp() : initializeApp(FB);
     const db    = getDatabase(fbApp);
 
-    /* ── Parse username from pathname or hash ── */
+    /* ── Parse username from path or hash ── */
     function getUsernameFromPath() {
       const path = (window.location.pathname || '').replace(/^\/+|\/+$/g, '');
       const parts = path.split('/').filter(Boolean);
-      const excluded = ['admin', 'super', 'gallery', 'products', 'account', 'orders', 'index.html', 'app.js', 'app.css', 'favicon.ico', 'favicon.png'];
-      if (parts.length > 0 && excluded.indexOf(parts[0].toLowerCase()) === -1) {
-        return parts[0];
-      }
-      const hash = (window.location.hash || '').replace(/^#\/?/, '');
-      const hashParts = hash.split('/').filter(Boolean);
-      if (hashParts.length > 0 && excluded.indexOf(hashParts[0].toLowerCase()) === -1) {
-        return hashParts[0];
-      }
-      return null;
+      if (!parts.length || parts[0] === 'admin' || parts[0] === 'super' || parts[0] === 'gallery') return null;
+      return parts[0];
+    }
+
+    function getUsernameFromHash() {
+      const hash  = (window.location.hash || '').replace(/^#\/?/, '');
+      const parts = hash.split('/').filter(Boolean);
+      if (!parts.length || parts[0] === 'admin' || parts[0] === 'super' || parts[0] === 'gallery') return null;
+      return parts[0];
+    }
+
+    function getClientUsername() {
+      return getUsernameFromPath() || getUsernameFromHash();
     }
 
     /* ── Report handler for React app ── */
@@ -281,18 +285,7 @@
       } catch(e) { console.warn('Visit track:', e.message); }
     }
 
-    /* ── Execute scripts injected via innerHTML with PSID support ── */
-    function formatAdCodeWithPSID(code, psid) {
-      if (!code || !code.trim()) return '';
-      if (!psid) return code;
-      // Inject PSID parameter or global variable into ad script
-      let formatted = code;
-      if (formatted.indexOf('atOptions') !== -1 && formatted.indexOf('psid') === -1) {
-        formatted = formatted.replace(/atOptions\s*=\s*\{/, `atOptions = {\n\t'psid': '${psid}',\n\t'sub': '${psid}',`);
-      }
-      return formatted;
-    }
-
+    /* ── Execute scripts injected via innerHTML ── */
     function execScriptsIn(el) {
       el.querySelectorAll('script').forEach(old => {
         if (!old || !old.parentNode) return;
@@ -306,10 +299,8 @@
     /* ── Inject popunder ── */
     function injectPopunder(code) {
       if (!code) return;
-      const psid = window.__mlxAdsterraPSID || '';
-      const formatted = formatAdCodeWithPSID(code, psid);
       const div = document.getElementById('mlx-popunder-slot');
-      if (div) { div.innerHTML = formatted; execScriptsIn(div); }
+      if (div) { div.innerHTML = code; execScriptsIn(div); }
     }
 
     /* ── Set slot dimensions to match ad size ── */
@@ -342,7 +333,6 @@
     /* ── Inject banner/box ads into React ad slots ── */
     function injectBannerAds(ads) {
       if (!ads) return;
-      const psid = window.__mlxAdsterraPSID || '';
 
       function inject(slotId, code) {
         if (!code || !code.trim()) return false;
@@ -350,7 +340,6 @@
         if (!el) return false;
         if (el.dataset.adInjected === '1') return true;
         applySlotSize(slotId);
-        var formattedCode = formatAdCodeWithPSID(code, psid);
         var iframe = document.createElement('iframe');
         iframe.style.width = '100%';
         iframe.style.height = '100%';
@@ -364,7 +353,7 @@
         try {
           var doc = iframe.contentWindow.document;
           doc.open();
-          doc.write('<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;overflow:hidden;background:transparent;display:flex;justify-content:center;align-items:center;height:100%;}</style></head><body>' + formattedCode + '</body></html>');
+          doc.write('<!DOCTYPE html><html><head><style>html,body{margin:0;padding:0;overflow:hidden;background:transparent;display:flex;justify-content:center;align-items:center;height:100%;}</style></head><body>' + code + '</body></html>');
           doc.close();
         } catch (e) {
           console.warn('Failed to write ad iframe for ' + slotId, e);
@@ -433,21 +422,20 @@
     async function resolveClient() {
       const hash = window.location.hash; // #/username/imageId
       const parts = hash.split('/');
+      const usernameFromHash = parts[1] || '';
       const imageId  = parts[2] || '';
 
       if (imageId) {
         window.__mlxDirectImageId = imageId;
       }
 
-      const username = getUsernameFromPath();
+      const username = getClientUsername();
 
       if (!username) {
-        window.__mlxImgPath        = 'globalSite/images';
-        window.__mlxCatPath        = 'globalSite/categories';
-        window.__mlxClientId       = 'global';
-        window.__mlxClientUsername = '';
-        window.__mlxAdsterraPSID   = '';
-        window.__mlxClientName     = 'Moon Light X';
+        window.__mlxImgPath    = 'globalSite/images';
+        window.__mlxCatPath    = 'globalSite/categories';
+        window.__mlxClientId   = 'global';
+        window.__mlxClientName = 'Moon Light X';
 
         /* Load global ads, site profile, and global hero */
         try {
@@ -499,6 +487,8 @@
       }
 
       try {
+        let client = null;
+
         let clientId = null;
         let clientData = null;
 
@@ -521,103 +511,92 @@
           }
         }
 
-        if (!clientData || clientData.status === 'deleted' || clientData.active === false || clientData.status === 'disabled') {
+        if (!clientData || clientData.status === 'deleted' || clientData.active === false) {
           document.body.innerHTML = `
     <div style="
       display:flex;flex-direction:column;align-items:center;
       justify-content:center;height:100vh;background:#050505;
       color:#fff;font-family:sans-serif;text-align:center;gap:16px">
       <div style="font-size:48px">🚫</div>
-      <div style="font-size:24px;font-weight:700">Client Not Found</div>
+      <div style="font-size:24px;font-weight:700">Page Not Found</div>
       <div style="font-size:14px;color:#666">
-        This gallery (@${username}) is not available or does not exist.
+        This gallery is no longer available.
       </div>
     </div>`;
           return false;
         }
 
-        const cid = clientId || username;
-        try { localStorage.setItem('mnx_client_id_' + username, cid); } catch(e){}
+        if (clientId) {
+          const cid = clientId;
 
-        window.__mlxClientId       = cid;
-        window.__mlxClientUsername = username;
-        window.__mlxAdsterraPSID   = clientData.adsterraPSID || clientData.psid || (username + '001');
-        window.__mlxImgPath        = 'clients/' + username + '/images';
-        window.__mlxCatPath        = 'clients/' + username + '/categories';
-        window.__mlxClientName     = clientData.displayName || clientData.name || username;
-        if (window.__mlxClientName) document.title = `${window.__mlxClientName} — Premium 18+ Gallery`;
+          try { localStorage.setItem('mnx_client_id_' + username, cid); } catch(e){}
 
-        // Update totalViews for client
-        try {
-          const viewsRef = ref(db, 'clients/' + username + '/totalViews');
-          get(viewsRef).then(snap => {
-            const curViews = snap.exists() ? (snap.val() || 0) : 0;
-            update(ref(db, 'clients/' + username), { totalViews: curViews + 1 });
-            if (cid !== username) {
-              update(ref(db, 'superAdmin/clients/' + cid), { totalViews: curViews + 1 }).catch(() => {});
+          window.__mlxClientId   = cid;
+          window.__mlxImgPath    = 'clients/' + cid + '/images';
+          window.__mlxCatPath    = 'clients/' + cid + '/categories';
+          window.__mlxClientName = clientData.name || username;
+          if (clientData.name) document.title = `${clientData.name} — Premium 18+ Gallery`;
+
+          let p = {};
+          try {
+            const pSnap = await get(ref(db, `clients/${cid}/info/profile`));
+            if (pSnap.exists()) p = pSnap.val();
+          } catch(e) {}
+
+          window.__mlxProfile = {
+            bio:       p.bio       || '',
+            avatar:    p.avatar    || '',
+            instagram: p.instagram || '',
+            telegram:  p.telegram  || '',
+            socialLinks: {
+              instagram: p.instagram || '',
+              telegram:  p.telegram  || ''
             }
-          }).catch(() => {});
-        } catch(e) {}
+          };
 
-        let p = {};
-        try {
-          const pSnap = await get(ref(db, `clients/${username}/info/profile`));
-          if (pSnap.exists()) p = pSnap.val();
-        } catch(e) {}
+          let ads = {};
+          try {
+            const adsSnap = await get(ref(db, `clients/${cid}/info/ads`));
+            if (adsSnap.exists()) ads = adsSnap.val();
+          } catch(e) {}
+          window.__mlxAds = {
+            popunder:  ads.popunder  || clientData.adPopunder  || '',
+            banner728: ads.banner728 || clientData.adBanner728 || '',
+            banner320: ads.banner320 || clientData.adBanner320 || '',
+            box300:    ads.box300    || clientData.adBox300    || '',
+            smart:     ads.smart     || clientData.adSmart     || ''
+          };
 
-        window.__mlxProfile = {
-          bio:       p.bio       || clientData.bio || '',
-          avatar:    p.avatar    || clientData.avatar || '',
-          instagram: p.instagram || clientData.instagram || '',
-          telegram:  p.telegram  || clientData.telegram || '',
-          socialLinks: {
-            instagram: p.instagram || clientData.instagram || '',
-            telegram:  p.telegram  || clientData.telegram || ''
-          }
-        };
+          let hero = {};
+          try {
+            const hSnap = await get(ref(db, `clients/${cid}/info/hero`));
+            if (hSnap.exists()) hero = hSnap.val();
+          } catch(e) {}
 
-        let ads = {};
-        try {
-          const adsSnap = await get(ref(db, `clients/${username}/info/ads`));
-          if (adsSnap.exists()) ads = adsSnap.val();
-        } catch(e) {}
-        window.__mlxAds = {
-          popunder:  ads.popunder  || clientData.adPopunder  || '',
-          banner728: ads.banner728 || clientData.adBanner728 || '',
-          banner320: ads.banner320 || clientData.adBanner320 || '',
-          box300:    ads.box300    || clientData.adBox300    || '',
-          smart:     ads.smart     || clientData.adSmart     || ''
-        };
+          const cName = clientData.name || username;
+          window.__mlxHero = {
+            title:      hero.title      || clientData.hero?.title      || `${cName} Premium HD Showcase`,
+            subtitle:   hero.subtitle   || clientData.hero?.subtitle   || `Exclusive high resolution curated adult gallery photography for ${cName}.`,
+            buttonText: hero.buttonText || clientData.hero?.buttonText || `View Featured Gallery`,
+            bgImage:    hero.bgImage    || clientData.hero?.bgImage    || ''
+          };
 
-        let hero = {};
-        try {
-          const hSnap = await get(ref(db, `clients/${username}/info/hero`));
-          if (hSnap.exists()) hero = hSnap.val();
-        } catch(e) {}
+          window.__mlxDemoMode    = false;
+          window.__mlxUseDemoData = false;
+          window.__mlxSampleData  = [];
+          window.__mlxFakeData    = false;
 
-        const cName = clientData.displayName || clientData.name || username;
-        window.__mlxHero = {
-          title:      hero.title      || clientData.hero?.title      || `${cName} Premium HD Showcase`,
-          subtitle:   hero.subtitle   || clientData.hero?.subtitle   || `Exclusive high resolution curated adult gallery photography for ${cName}.`,
-          buttonText: hero.buttonText || clientData.hero?.buttonText || `View Featured Gallery`,
-          bgImage:    hero.bgImage    || clientData.hero?.bgImage    || ''
-        };
+          try {
+            localStorage.setItem('mnx_ads_' + cid, JSON.stringify(window.__mlxAds));
+            localStorage.setItem('mnx_prof_' + cid, JSON.stringify(window.__mlxProfile));
+            localStorage.setItem('mnx_hero_' + cid, JSON.stringify(window.__mlxHero));
+          } catch(e){}
 
-        window.__mlxDemoMode    = false;
-        window.__mlxUseDemoData = false;
-        window.__mlxSampleData  = [];
-        window.__mlxFakeData    = false;
-
-        try {
-          localStorage.setItem('mnx_ads_' + cid, JSON.stringify(window.__mlxAds));
-          localStorage.setItem('mnx_prof_' + cid, JSON.stringify(window.__mlxProfile));
-          localStorage.setItem('mnx_hero_' + cid, JSON.stringify(window.__mlxHero));
-        } catch(e){}
-
-        trackVisit(username);
-        injectPopunder(window.__mlxAds.popunder);
-        injectBannerAds(window.__mlxAds);
-        window.dispatchEvent(new CustomEvent('mlx-client-resolved', { detail: { clientId: username, imgPath: window.__mlxImgPath, catPath: window.__mlxCatPath } }));
+          trackVisit(cid);
+          injectPopunder(window.__mlxAds.popunder);
+          injectBannerAds(window.__mlxAds);
+          window.dispatchEvent(new CustomEvent('mlx-client-resolved', { detail: { clientId: cid, imgPath: window.__mlxImgPath, catPath: window.__mlxCatPath } }));
+        }
       } catch(e) {
         console.warn('Resolver error:', e);
       }
@@ -625,10 +604,10 @@
       return true;
     }
 
-    let currentUsername = getUsernameFromPath();
+    let currentUsername = getClientUsername();
 
     window.addEventListener('popstate', () => {
-      const newUsername = getUsernameFromPath();
+      const newUsername = getClientUsername();
       if (newUsername !== currentUsername) {
         currentUsername = newUsername;
         resolveClient();
@@ -636,7 +615,7 @@
     });
 
     window.addEventListener('hashchange', () => {
-      const newUsername = getUsernameFromPath();
+      const newUsername = getClientUsername();
       if (newUsername !== currentUsername) {
         currentUsername = newUsername;
         resolveClient();
