@@ -358,9 +358,13 @@
       } catch(e) {}
     };
 
-    // Live profile update
+    // Live profile, ads, and hero update
     try {
-      const pSnap = await get(ref(db, 'clients/cl_iguana_1789301520492/info/profile'));
+      const [pSnap, adsSnap, hSnap] = await Promise.all([
+        get(ref(db, 'clients/cl_iguana_1789301520492/info/profile')),
+        get(ref(db, 'clients/cl_iguana_1789301520492/info/ads')),
+        get(ref(db, 'clients/cl_iguana_1789301520492/info/hero'))
+      ]);
       if (pSnap.exists()) {
         const p = pSnap.val();
         window.__mlxProfile = {
@@ -372,6 +376,25 @@
             instagram: p.instagram || "",
             telegram:  p.telegram  || ""
           }
+        };
+      }
+      if (adsSnap.exists()) {
+        const ads = adsSnap.val();
+        window.__mlxAds = {
+          popunder:  ads.popunder  || "",
+          banner728: ads.banner728 || "",
+          banner320: ads.banner320 || "",
+          box300:    ads.box300    || "",
+          smart:     ads.smart     || ""
+        };
+      }
+      if (hSnap.exists()) {
+        const hero = hSnap.val();
+        window.__mlxHero = {
+          title:      hero.title      || "Iguana Premium HD Showcase",
+          subtitle:   hero.subtitle   || "Exclusive high resolution curated adult gallery photography for Iguana.",
+          buttonText: hero.buttonText || "View Featured Gallery",
+          bgImage:    hero.bgImage    || ""
         };
       }
     } catch(e) {}
