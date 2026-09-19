@@ -1310,12 +1310,16 @@ async function generateClientSiteHTML(clientId) {
 // SHARE MODAL
 function saShowShareModal(clientId) {
   const c    = saClients.find(x => x.id === clientId); if(!c) return;
-  const adminUrl   = `https://moonlightx.qd.je/admin/#/admin/${c.username}`;
-  const siteUrl    = `https://moonlightx.qd.je/${c.username}/`;
+  const adminUrl    = `https://moonlightx.qd.je/admin/#/admin/${c.username}`;
+  const siteUrl     = `https://moonlightx.qd.je/${c.username}/`;
+  const adsterraUrl = `https://${c.username}.moonlightx.qd.je/`;
 
   document.getElementById('sm-name').textContent       = c.name;
   document.getElementById('sm-admin-url').textContent  = adminUrl;
   document.getElementById('sm-site-url').textContent   = siteUrl;
+  if (document.getElementById('sm-adsterra-url')) {
+    document.getElementById('sm-adsterra-url').textContent = adsterraUrl;
+  }
   document.getElementById('sm-download-site').dataset.clientId  = clientId;
   document.getElementById('sm-download-status').style.display   = 'none';
   document.getElementById('sm-deploy-github').dataset.clientId  = clientId;
@@ -1340,6 +1344,19 @@ function saShowShareModal(clientId) {
   };
   document.getElementById('sm-open-site').onclick  = () => window.open(siteUrl, '_blank');
 
+  const copyAdsterraBtn = document.getElementById('sm-copy-adsterra');
+  if (copyAdsterraBtn) {
+    copyAdsterraBtn.onclick = () => {
+      navigator.clipboard.writeText(adsterraUrl);
+      copyAdsterraBtn.textContent = '✅ Copied!';
+      setTimeout(() => copyAdsterraBtn.textContent = '📋 Copy', 2000);
+    };
+  }
+  const openAdsterraBtn = document.getElementById('sm-open-adsterra');
+  if (openAdsterraBtn) {
+    openAdsterraBtn.onclick = () => window.open(adsterraUrl, '_blank');
+  }
+
   // Public URL warning in share modal
   const smWarn = document.getElementById('sm-public-warn');
   if (smWarn) smWarn.style.display = getPublicBase() ? 'none' : 'flex';
@@ -1349,10 +1366,10 @@ function saShowShareModal(clientId) {
 
 📌 Ye links sirf aapke liye hain.
 
-Hi! Ye rahe aapke Moon Light X ke 2 links:\n\n⚙️ Admin Panel (images manage karo):\n${adminUrl}\n\n🌐 Public Gallery (visitors dekhenge):\n${siteUrl}\n\nAdmin panel pe apni Gmail (${c.googleEmail}) se login karo.`;
+Hi! Ye rahe aapke Moon Light X ke links:\n\n⚙️ Admin Panel (images manage karo):\n${adminUrl}\n\n🌐 Public Gallery (visitors dekhenge):\n${siteUrl}\n\n📢 Adsterra Approval URL (Adsterra mein 'Add Website' ke liye):\n${adsterraUrl}\n\nAdmin panel pe apni Gmail (${c.googleEmail}) se login karo.`;
     navigator.clipboard.writeText(msg);
     document.getElementById('sm-copy-both').textContent = '✅ Copied!';
-    setTimeout(() => document.getElementById('sm-copy-both').textContent = '📋 Copy Both Links', 2000);
+    setTimeout(() => document.getElementById('sm-copy-both').textContent = '📋 Copy Links', 2000);
   };
 
   (async () => {
@@ -1360,12 +1377,14 @@ Hi! Ye rahe aapke Moon Light X ke 2 links:\n\n⚙️ Admin Panel (images manage 
       await update(ref(db, `superAdmin/clients/${clientId}`), {
         adminUrl,
         siteUrl,
+        adsterraUrl,
         generatedAt: new Date().toISOString()
       });
       try {
         await update(ref(db, `clients/${clientId}/info`), {
           adminUrl,
           siteUrl,
+          adsterraUrl,
           generatedAt: new Date().toISOString()
         });
       } catch(e){}
@@ -1478,7 +1497,7 @@ document.getElementById('sa-cm-username').addEventListener('input', () => {
   let u = document.getElementById('sa-cm-username').value.toLowerCase().replace(/[^a-z0-9-]/g,'');
   document.getElementById('sa-cm-username').value = u;
   document.getElementById('sa-username-preview').innerHTML =
-    u ? `Admin: <span style="color:var(--grn)">https://moonlightx.qd.je/admin/#/admin/${u}</span> &nbsp;|&nbsp; Site: <span style="color:var(--blu)">https://moonlightx.qd.je/${u}/</span>`
+    u ? `Admin: <span style="color:var(--grn)">https://moonlightx.qd.je/admin/#/admin/${u}</span> &nbsp;|&nbsp; Site: <span style="color:var(--blu)">https://moonlightx.qd.je/${u}/</span> &nbsp;|&nbsp; Adsterra: <span style="color:#fbbf24">https://${u}.moonlightx.qd.je/</span>`
       : 'Preview: —';
 });
 
@@ -1577,6 +1596,7 @@ document.getElementById('sa-cm-save').addEventListener('click', async () => {
     totalViews:     existing ? (existing.totalViews    || 0) : 0,
     adminUrl:       'https://moonlightx.qd.je/admin/#/admin/' + username,
     siteUrl:        'https://moonlightx.qd.je/' + username + '/',
+    adsterraUrl:    'https://' + username + '.moonlightx.qd.je/',
     hero:           existing?.hero || heroDefaults
   };
 
