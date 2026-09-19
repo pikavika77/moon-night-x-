@@ -1312,7 +1312,7 @@ function saShowShareModal(clientId) {
   const c    = saClients.find(x => x.id === clientId); if(!c) return;
   const adminUrl    = `https://moonlightx.qd.je/admin/#/admin/${c.username}`;
   const siteUrl     = `https://moonlightx.qd.je/${c.username}/`;
-  const adsterraUrl = `https://${c.username}.moonlightx.qd.je/`;
+  const adsterraUrl = `https://moonlightx.qd.je/#/${c.username}/`;
 
   document.getElementById('sm-name').textContent       = c.name;
   document.getElementById('sm-admin-url').textContent  = adminUrl;
@@ -1497,7 +1497,7 @@ document.getElementById('sa-cm-username').addEventListener('input', () => {
   let u = document.getElementById('sa-cm-username').value.toLowerCase().replace(/[^a-z0-9-]/g,'');
   document.getElementById('sa-cm-username').value = u;
   document.getElementById('sa-username-preview').innerHTML =
-    u ? `Admin: <span style="color:var(--grn)">https://moonlightx.qd.je/admin/#/admin/${u}</span> &nbsp;|&nbsp; Site: <span style="color:var(--blu)">https://moonlightx.qd.je/${u}/</span> &nbsp;|&nbsp; Adsterra: <span style="color:#fbbf24">https://${u}.moonlightx.qd.je/</span>`
+    u ? `Admin: <span style="color:var(--grn)">https://moonlightx.qd.je/admin/#/admin/${u}</span> &nbsp;|&nbsp; Site: <span style="color:var(--blu)">https://moonlightx.qd.je/${u}/</span> &nbsp;|&nbsp; Adsterra: <span style="color:#fbbf24">https://moonlightx.qd.je/#/${u}/</span>`
       : 'Preview: —';
 });
 
@@ -1596,7 +1596,7 @@ document.getElementById('sa-cm-save').addEventListener('click', async () => {
     totalViews:     existing ? (existing.totalViews    || 0) : 0,
     adminUrl:       'https://moonlightx.qd.je/admin/#/admin/' + username,
     siteUrl:        'https://moonlightx.qd.je/' + username + '/',
-    adsterraUrl:    'https://' + username + '.moonlightx.qd.je/',
+    adsterraUrl:    'https://moonlightx.qd.je/#/' + username + '/',
     hero:           existing?.hero || heroDefaults
   };
 

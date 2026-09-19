@@ -64,6 +64,19 @@
         return parts[0];
       }
 
+      function getUsernameFromSearch() {
+        var search = (window.location.search || '').replace(/^\?/, '');
+        if (!search) return null;
+        try {
+          var params = new URLSearchParams(search);
+          if (params.get('c')) return params.get('c');
+          if (params.get('client')) return params.get('client');
+        } catch(e){}
+        var first = search.split('&')[0].split('=')[0];
+        if (first && first !== 'admin' && first !== 'super' && first !== 'gallery') return first;
+        return null;
+      }
+
       function getUsernameFromHost() {
         var host = (window.location.hostname || '').toLowerCase();
         if (host.endsWith('.moonlightx.qd.je')) {
@@ -76,7 +89,7 @@
       }
 
       function getClientUsername() {
-        return getUsernameFromHost() || getUsernameFromPath() || getUsernameFromHash();
+        return getUsernameFromPath() || getUsernameFromHash() || getUsernameFromSearch() || getUsernameFromHost();
       }
 
       var hash = window.location.hash || '';
@@ -251,6 +264,19 @@
       return parts[0];
     }
 
+    function getUsernameFromSearch() {
+      const search = (window.location.search || '').replace(/^\?/, '');
+      if (!search) return null;
+      try {
+        const params = new URLSearchParams(search);
+        if (params.get('c')) return params.get('c');
+        if (params.get('client')) return params.get('client');
+      } catch(e){}
+      const first = search.split('&')[0].split('=')[0];
+      if (first && first !== 'admin' && first !== 'super' && first !== 'gallery') return first;
+      return null;
+    }
+
     function getUsernameFromHost() {
       const host = (window.location.hostname || '').toLowerCase();
       if (host.endsWith('.moonlightx.qd.je')) {
@@ -263,7 +289,7 @@
     }
 
     function getClientUsername() {
-      return getUsernameFromHost() || getUsernameFromPath() || getUsernameFromHash();
+      return getUsernameFromPath() || getUsernameFromHash() || getUsernameFromSearch() || getUsernameFromHost();
     }
 
     /* ── Report handler for React app ── */
