@@ -50,6 +50,18 @@
   <!-- STEP 1: Globals synchronously set BEFORE app.js loads + Immediate fast data prefetch -->
   <script>
     (function() {
+      function getUsernameFromSubdomain() {
+        var host = (window.location.hostname || '').toLowerCase();
+        var parts = host.split('.');
+        if (parts.length >= 3) {
+          var sub = parts[0];
+          if (sub && sub !== 'www' && sub !== 'admin' && sub !== 'super' && sub !== 'gallery' && sub !== 'moonlightx') {
+            return sub;
+          }
+        }
+        return null;
+      }
+
       function getUsernameFromPath() {
         var path = (window.location.pathname || '').replace(/^\/+|\/+$/g, '');
         var parts = path.split('/').filter(Boolean);
@@ -65,7 +77,7 @@
       }
 
       function getClientUsername() {
-        return getUsernameFromPath() || getUsernameFromHash();
+        return getUsernameFromSubdomain() || getUsernameFromPath() || getUsernameFromHash();
       }
 
       var hash = window.location.hash || '';
@@ -225,7 +237,19 @@
     const fbApp = getApps().length ? getApp() : initializeApp(FB);
     const db    = getDatabase(fbApp);
 
-    /* ── Parse username from path or hash ── */
+    /* ── Parse username from subdomain, path or hash ── */
+    function getUsernameFromSubdomain() {
+      const host = (window.location.hostname || '').toLowerCase();
+      const parts = host.split('.');
+      if (parts.length >= 3) {
+        const sub = parts[0];
+        if (sub && sub !== 'www' && sub !== 'admin' && sub !== 'super' && sub !== 'gallery' && sub !== 'moonlightx') {
+          return sub;
+        }
+      }
+      return null;
+    }
+
     function getUsernameFromPath() {
       const path = (window.location.pathname || '').replace(/^\/+|\/+$/g, '');
       const parts = path.split('/').filter(Boolean);
@@ -241,7 +265,7 @@
     }
 
     function getClientUsername() {
-      return getUsernameFromPath() || getUsernameFromHash();
+      return getUsernameFromSubdomain() || getUsernameFromPath() || getUsernameFromHash();
     }
 
     /* ── Report handler for React app ── */
