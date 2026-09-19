@@ -1616,6 +1616,16 @@ document.getElementById('sa-cm-save').addEventListener('click', async () => {
       await set(ref(db, `clients/${id}/info/hero`), targetHero);
       await set(ref(db, `superAdmin/clients/${id}/hero`), targetHero);
 
+      const targetAds = {
+        popunder:  data.adPopunder  || '',
+        banner728: data.adBanner728 || '',
+        banner320: data.adBanner320 || '',
+        box300:    data.adBox300    || '',
+        smart:     data.adSmart     || ''
+      };
+      await set(ref(db, `clients/${id}/info/ads`), targetAds);
+      await set(ref(db, `superAdmin/clients/${id}/ads`), targetAds).catch(() => {});
+
       // Save public mapping at clients/${username}
       await set(ref(db, `clients/${username}`), {
         clientId: id,
@@ -2894,6 +2904,12 @@ window.clSaveHero = clSaveHero;
 window.saLoadHero = saLoadHero;
 window.saSaveHero = saSaveHero;
 window.prefillImageDefaults = prefillImageDefaults;
+window.saSaveGlobalAds = saSaveGlobalAds;
+window.saAddGlobalCat = saAddGlobalCat;
+window.saDelGlobalCat = saDelGlobalCat;
+window.saAddGlobalImg = saAddGlobalImg;
+window.saDelGlobalImg = saDelGlobalImg;
+window.saSaveSiteProfile = saSaveSiteProfile;
 
 // ── INIT ───────────────────────────────────────────────────────────────
 document.getElementById('sa-nb-log').textContent = saActLog.length;
