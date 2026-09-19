@@ -103,12 +103,14 @@
         window.__mlxClientName = 'Moon Light X';
       }
 
-      // Load cached ads & profile synchronously if present
+      // Load cached ads, profile & hero synchronously if present
       try {
         var savedAds = localStorage.getItem('mnx_ads_' + window.__mlxClientId);
         if (savedAds) window.__mlxAds = JSON.parse(savedAds);
         var savedProf = localStorage.getItem('mnx_prof_' + window.__mlxClientId);
         if (savedProf) window.__mlxProfile = JSON.parse(savedProf);
+        var savedHero = localStorage.getItem('mnx_hero_' + window.__mlxClientId);
+        if (savedHero) window.__mlxHero = JSON.parse(savedHero);
       } catch(e){}
 
       if (!window.__mlxProfile) {
@@ -464,9 +466,9 @@
         /* Load global ads, site profile, and global hero */
         try {
           const [adsSnap, profSnap, heroSnap] = await Promise.all([
-            get(ref(db, 'superAdmin/settings/globalAds')),
-            get(ref(db, 'superAdmin/settings/siteProfile')),
-            get(ref(db, 'superAdmin/settings/globalHero'))
+            get(ref(db, 'globalSite/ads')),
+            get(ref(db, 'globalSite/profile')),
+            get(ref(db, 'globalSite/hero'))
           ]);
           const ads   = adsSnap.exists()  ? adsSnap.val()  : {};
           const prof  = profSnap.exists() ? profSnap.val() : {};
