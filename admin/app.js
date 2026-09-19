@@ -1310,12 +1310,16 @@ async function generateClientSiteHTML(clientId) {
 // SHARE MODAL
 function saShowShareModal(clientId) {
   const c    = saClients.find(x => x.id === clientId); if(!c) return;
-  const adminUrl   = `https://moonlightx.qd.je/admin/#/admin/${c.username}`;
-  const siteUrl    = `https://moonlightx.qd.je/${c.username}/`;
+  const adminUrl    = `https://moonlightx.qd.je/admin/#/admin/${c.username}`;
+  const siteUrl     = `https://moonlightx.qd.je/${c.username}/`;
+  const adsterraUrl = `https://moonlightx.qd.je/#/${c.username}/`;
 
-  document.getElementById('sm-name').textContent       = c.name;
-  document.getElementById('sm-admin-url').textContent  = adminUrl;
-  document.getElementById('sm-site-url').textContent   = siteUrl;
+  document.getElementById('sm-name').textContent          = c.name;
+  document.getElementById('sm-admin-url').textContent     = adminUrl;
+  document.getElementById('sm-site-url').textContent      = siteUrl;
+  const smAdsterraEl = document.getElementById('sm-adsterra-url');
+  if (smAdsterraEl) smAdsterraEl.textContent = adsterraUrl;
+
   document.getElementById('sm-download-site').dataset.clientId  = clientId;
   document.getElementById('sm-download-status').style.display   = 'none';
   document.getElementById('sm-deploy-github').dataset.clientId  = clientId;
@@ -1333,12 +1337,27 @@ function saShowShareModal(clientId) {
     setTimeout(() => document.getElementById('sm-copy-admin').textContent = '📋 Copy', 2000);
   };
   document.getElementById('sm-open-admin').onclick = () => window.open(adminUrl, '_blank');
+
   document.getElementById('sm-copy-site').onclick  = () => {
     navigator.clipboard.writeText(siteUrl);
     document.getElementById('sm-copy-site').textContent = '✅ Copied!';
     setTimeout(() => document.getElementById('sm-copy-site').textContent = '📋 Copy', 2000);
   };
   document.getElementById('sm-open-site').onclick  = () => window.open(siteUrl, '_blank');
+
+  const copyAdsterraBtn = document.getElementById('sm-copy-adsterra');
+  if (copyAdsterraBtn) {
+    copyAdsterraBtn.onclick = () => {
+      navigator.clipboard.writeText(adsterraUrl);
+      copyAdsterraBtn.textContent = '✅ Copied!';
+      setTimeout(() => copyAdsterraBtn.textContent = '📋 Copy', 2000);
+    };
+  }
+
+  const openAdsterraBtn = document.getElementById('sm-open-adsterra');
+  if (openAdsterraBtn) {
+    openAdsterraBtn.onclick = () => window.open(adsterraUrl, '_blank');
+  }
 
   // Public URL warning in share modal
   const smWarn = document.getElementById('sm-public-warn');
@@ -1349,7 +1368,7 @@ function saShowShareModal(clientId) {
 
 📌 Ye links sirf aapke liye hain.
 
-Hi! Ye rahe aapke Moon Light X ke 2 links:\n\n⚙️ Admin Panel (images manage karo):\n${adminUrl}\n\n🌐 Public Gallery (visitors dekhenge):\n${siteUrl}\n\nAdmin panel pe apni Gmail (${c.googleEmail}) se login karo.`;
+Hi! Ye rahe aapke Moon Light X ke links:\n\n⚙️ Admin Panel (images manage karo):\n${adminUrl}\n\n🌐 Real Site URL (visitors dekhenge):\n${siteUrl}\n\n🎯 Adsterra Approval URL (Adsterra site submit ke liye):\n${adsterraUrl}\n\nAdmin panel pe apni Gmail (${c.googleEmail}) se login karo.`;
     navigator.clipboard.writeText(msg);
     document.getElementById('sm-copy-both').textContent = '✅ Copied!';
     setTimeout(() => document.getElementById('sm-copy-both').textContent = '📋 Copy Both Links', 2000);
@@ -1360,16 +1379,18 @@ Hi! Ye rahe aapke Moon Light X ke 2 links:\n\n⚙️ Admin Panel (images manage 
       await update(ref(db, `superAdmin/clients/${clientId}`), {
         adminUrl,
         siteUrl,
+        adsterraUrl,
         generatedAt: new Date().toISOString()
       });
       try {
         await update(ref(db, `clients/${clientId}/info`), {
           adminUrl,
           siteUrl,
+          adsterraUrl,
           generatedAt: new Date().toISOString()
         });
       } catch(e){}
-      saAddLog('add', `Generated URLs for "${c.name}" — site: ${siteUrl}`);
+      saAddLog('add', `Generated URLs for "${c.name}" — site: ${siteUrl} | adsterra: ${adsterraUrl}`);
     } catch (err) {
       console.error('Error saving URLs to Firebase:', err);
       toast('❌ Failed to save URLs: ' + err.message, 'err');
@@ -1478,7 +1499,7 @@ document.getElementById('sa-cm-username').addEventListener('input', () => {
   let u = document.getElementById('sa-cm-username').value.toLowerCase().replace(/[^a-z0-9-]/g,'');
   document.getElementById('sa-cm-username').value = u;
   document.getElementById('sa-username-preview').innerHTML =
-    u ? `Admin: <span style="color:var(--grn)">https://moonlightx.qd.je/admin/#/admin/${u}</span> &nbsp;|&nbsp; Site: <span style="color:var(--blu)">https://moonlightx.qd.je/${u}/</span>`
+    u ? `Admin: <span style="color:var(--grn)">https://moonlightx.qd.je/admin/#/admin/${u}</span> &nbsp;|&nbsp; Site: <span style="color:var(--blu)">https://moonlightx.qd.je/${u}/</span> &nbsp;|&nbsp; Adsterra: <span style="color:#f59e0b">https://moonlightx.qd.je/#/${u}/</span>`
       : 'Preview: —';
 });
 
@@ -1577,6 +1598,7 @@ document.getElementById('sa-cm-save').addEventListener('click', async () => {
     totalViews:     existing ? (existing.totalViews    || 0) : 0,
     adminUrl:       'https://moonlightx.qd.je/admin/#/admin/' + username,
     siteUrl:        'https://moonlightx.qd.je/' + username + '/',
+    adsterraUrl:    'https://moonlightx.qd.je/#/' + username + '/',
     hero:           existing?.hero || heroDefaults
   };
 
