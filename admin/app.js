@@ -432,7 +432,10 @@ function saShowPage(name) {
 
 async function saLoadHero() {
   try {
-    const snap = await get(ref(db, 'superAdmin/settings/globalHero'));
+    let snap = await get(ref(db, 'globalSite/hero'));
+    if (!snap.exists()) {
+      snap = await get(ref(db, 'superAdmin/settings/globalHero'));
+    }
     if (snap.exists()) {
       const h = snap.val();
       if (document.getElementById('sa-hero-title'))    document.getElementById('sa-hero-title').value = h.title || '';
@@ -454,8 +457,11 @@ async function saSaveHero() {
     bgImage:    document.getElementById('sa-hero-bg')?.value.trim() || ''
   };
   try {
-    await set(ref(db, 'superAdmin/settings/globalHero'), heroData);
-    await set(ref(db, 'globalSite/hero'), heroData).catch(() => {});
+    await set(ref(db, 'globalSite/hero'), heroData);
+    await set(ref(db, 'superAdmin/settings/globalHero'), heroData).catch(() => {});
+    try {
+      localStorage.removeItem('mnx_hero_global');
+    } catch(e) {}
     if (statusEl) {
       statusEl.style.display = 'block';
       statusEl.style.color = 'var(--grn)';
@@ -580,8 +586,11 @@ function saInitGlobalSite() {
     saPopulateGlobalCatSelect();
   }
   // Load ads
-  get(ref(db, 'superAdmin/settings/globalAds')).then(snap => {
-    if (!snap.exists()) return;
+  get(ref(db, 'globalSite/ads')).then(snap => {
+    if (!snap.exists()) return get(ref(db, 'superAdmin/settings/globalAds'));
+    return snap;
+  }).then(snap => {
+    if (!snap || !snap.exists()) return;
     const ads = snap.val();
     ['popunder','banner728','banner320','box300','smart'].forEach(k => {
       const el = document.getElementById('sa-gad-' + k);
@@ -589,8 +598,11 @@ function saInitGlobalSite() {
     });
   }).catch(() => {});
   // Load site profile
-  get(ref(db, 'superAdmin/settings/siteProfile')).then(snap => {
-    if (!snap.exists()) return;
+  get(ref(db, 'globalSite/profile')).then(snap => {
+    if (!snap.exists()) return get(ref(db, 'superAdmin/settings/siteProfile'));
+    return snap;
+  }).then(snap => {
+    if (!snap || !snap.exists()) return;
     const p = snap.val();
     ['name','bio','avatar'].forEach(k => {
       const el = document.getElementById('sa-sp-' + k);
@@ -723,6 +735,10 @@ async function saAddGlobalImg() {
       category:cat, description:desc, views, likes, comments, resolution, format, filesize, compliance, tags,
       createdAt:new Date().toISOString()
     });
+    try {
+      localStorage.removeItem('mnx_ts_global');
+      localStorage.removeItem('mnx_img_global');
+    } catch(e) {}
     ['sa-gadd-title','sa-gadd-thumb','sa-gadd-hires','sa-gadd-watch','sa-gadd-download','sa-gadd-desc','sa-gadd-views','sa-gadd-likes','sa-gadd-comments','sa-gadd-resolution','sa-gadd-format','sa-gadd-filesize','sa-gadd-compliance','sa-gadd-tags'].forEach(k => { const e=document.getElementById(k); if(e) e.value=''; });
     document.getElementById('sa-global-add-modal').style.display='none';
     toast('✅ Image add ho gayi!');
@@ -732,7 +748,14 @@ async function saAddGlobalImg() {
 
 async function saDelGlobalImg(id) {
   if (!confirm('Yeh image delete karein?')) return;
-  try { await remove(ref(db, `globalSite/images/${id}`)); toast('✅ Deleted!'); } catch(e) { toast('❌ '+e.message,'err'); }
+  try {
+    await remove(ref(db, `globalSite/images/${id}`));
+    try {
+      localStorage.removeItem('mnx_ts_global');
+      localStorage.removeItem('mnx_img_global');
+    } catch(e) {}
+    toast('✅ Deleted!');
+  } catch(e) { toast('❌ '+e.message,'err'); }
 }
 
 async function saAddGlobalCat() {
@@ -741,6 +764,10 @@ async function saAddGlobalCat() {
   const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
   try {
     await set(ref(db, `globalSite/categories/${id}`), { id, name, createdAt:new Date().toISOString() });
+    try {
+      localStorage.removeItem('mnx_cts_global');
+      localStorage.removeItem('mnx_cat_global');
+    } catch(e) {}
     document.getElementById('sa-gcat-name').value='';
     toast('✅ Category add ho gayi!');
   } catch(e) { toast('❌ '+e.message,'err'); }
@@ -748,14 +775,25 @@ async function saAddGlobalCat() {
 
 async function saDelGlobalCat(id) {
   if (!confirm('Category delete karein?')) return;
-  try { await remove(ref(db, `globalSite/categories/${id}`)); toast('✅ Deleted!'); } catch(e) { toast('❌ '+e.message,'err'); }
+  try {
+    await remove(ref(db, `globalSite/categories/${id}`));
+    try {
+      localStorage.removeItem('mnx_cts_global');
+      localStorage.removeItem('mnx_cat_global');
+    } catch(e) {}
+    toast('✅ Deleted!');
+  } catch(e) { toast('❌ '+e.message,'err'); }
 }
 
 async function saSaveGlobalAds() {
   const ads = { popunder:'', banner728:'', banner320:'', box300:'', smart:'' };
   Object.keys(ads).forEach(k => { ads[k] = document.getElementById('sa-gad-'+k)?.value.trim()||''; });
   try {
-    await set(ref(db,'superAdmin/settings/globalAds'), ads);
+    await set(ref(db,'globalSite/ads'), ads);
+    await set(ref(db,'superAdmin/settings/globalAds'), ads).catch(() => {});
+    try {
+      localStorage.removeItem('mnx_ads_global');
+    } catch(e) {}
     toast('✅ Ads save ho gaye! Real site pe turant apply honge.');
     saAddLog('edit','Global site ads updated');
   } catch(e) { toast('❌ '+e.message,'err'); }
@@ -764,7 +802,11 @@ async function saSaveGlobalAds() {
 async function saSaveSiteProfile() {
   const p = { name: document.getElementById('sa-sp-name')?.value.trim()||'Moon Light X', bio: document.getElementById('sa-sp-bio')?.value.trim()||'', avatar: document.getElementById('sa-sp-avatar')?.value.trim()||'' };
   try {
-    await set(ref(db,'superAdmin/settings/siteProfile'), p);
+    await set(ref(db,'globalSite/profile'), p);
+    await set(ref(db,'superAdmin/settings/siteProfile'), p).catch(() => {});
+    try {
+      localStorage.removeItem('mnx_prof_global');
+    } catch(e) {}
     toast('✅ Site profile save ho gaya!');
   } catch(e) { toast('❌ '+e.message,'err'); }
 }
