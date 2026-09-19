@@ -64,19 +64,8 @@
         return parts[0];
       }
 
-      function getUsernameFromHost() {
-        var host = (window.location.hostname || '').toLowerCase();
-        if (host.endsWith('.moonlightx.qd.je')) {
-          var sub = host.replace('.moonlightx.qd.je', '');
-          if (sub && sub !== 'www' && sub !== 'admin' && sub !== 'super' && sub !== 'moonlightx') {
-            return sub;
-          }
-        }
-        return null;
-      }
-
       function getClientUsername() {
-        return getUsernameFromHost() || getUsernameFromPath() || getUsernameFromHash();
+        return getUsernameFromPath() || getUsernameFromHash();
       }
 
       var hash = window.location.hash || '';
@@ -251,19 +240,8 @@
       return parts[0];
     }
 
-    function getUsernameFromHost() {
-      const host = (window.location.hostname || '').toLowerCase();
-      if (host.endsWith('.moonlightx.qd.je')) {
-        const sub = host.replace('.moonlightx.qd.je', '');
-        if (sub && sub !== 'www' && sub !== 'admin' && sub !== 'super' && sub !== 'moonlightx') {
-          return sub;
-        }
-      }
-      return null;
-    }
-
     function getClientUsername() {
-      return getUsernameFromHost() || getUsernameFromPath() || getUsernameFromHash();
+      return getUsernameFromPath() || getUsernameFromHash();
     }
 
     /* ── Report handler for React app ── */
